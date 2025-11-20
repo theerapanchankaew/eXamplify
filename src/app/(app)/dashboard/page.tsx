@@ -29,7 +29,7 @@ import {
 } from '@/components/ui/table';
 import { OverviewChart } from '@/components/dashboard/overview-chart';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query } from 'firebase/firestore';
+import { collection, query, collectionGroup } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function DashboardPage() {
@@ -53,6 +53,15 @@ export default function DashboardPage() {
     coursesCollectionQuery
   );
   
+  const examsCollectionQuery = useMemoFirebase(
+    () => (firestore ? query(collectionGroup(firestore, 'exams')) : null),
+    [firestore]
+  );
+
+  const { data: exams, isLoading: isLoadingExams } = useCollection(
+    examsCollectionQuery
+  );
+
   return (
     <div className="flex min-h-screen w-full flex-col">
       <main className="flex flex-1 flex-col gap-4 md:gap-8">
@@ -117,10 +126,19 @@ export default function DashboardPage() {
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">+573</div>
-              <p className="text-xs text-muted-foreground">
-                +201 since last hour
-              </p>
+              {isLoadingExams ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-8 w-24" />
+                  <Skeleton className="h-4 w-32" />
+                </div>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">{exams?.length || 0}</div>
+                  <p className="text-xs text-muted-foreground">
+                    Total active exams
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
