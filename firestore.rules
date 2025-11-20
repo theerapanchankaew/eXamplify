@@ -341,5 +341,3 @@ service cloud.firestore {
 
   }
 }
-
-    
