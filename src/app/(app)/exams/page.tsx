@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -110,7 +110,7 @@ export default function ExamsPage() {
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedExam, setSelectedExam] = useState<any>(null);
   
-  const userOwnedCourses = useMemoFirebase(() => {
+  const userOwnedCourses = useMemo(() => {
     if (!courses || !user) return [];
     if (userProfile?.role === 'Admin') return courses;
     return courses.filter(course => course.instructorId === user.uid);
