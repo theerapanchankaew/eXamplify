@@ -178,7 +178,7 @@ export default function ProfilePage() {
       }
       
       // Get the data URL with a specified quality for JPEG
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
       setCapturedImage(dataUrl);
     }
   };
