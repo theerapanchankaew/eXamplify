@@ -8,7 +8,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
 } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, writeBatch } from 'firebase/firestore';
 import { useAuth, useFirestore, useUser } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import {
@@ -43,6 +43,7 @@ export default function LoginPage() {
   const { user } = useUser();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [isSigningUp, setIsSigningUp] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -79,6 +80,7 @@ export default function LoginPage() {
 
   const handleSignUp = async (values: z.infer<typeof formSchema>) => {
     setIsLoading(true);
+    setIsSigningUp(true);
     if (!auth || !firestore) {
         toast({
             variant: 'destructive',
@@ -86,6 +88,7 @@ export default function LoginPage() {
             description: 'Firebase services are not available.',
         });
         setIsLoading(false);
+        setIsSigningUp(false);
         return;
     }
     try {
@@ -99,19 +102,24 @@ export default function LoginPage() {
       const isAdmin = values.email.toLowerCase() === 'admin@masci.com';
       const userRole = isAdmin ? 'Admin' : 'Student';
 
+      // Use a batch to ensure atomic writes
+      const batch = writeBatch(firestore);
+
       // Create user document in Firestore
       const userDocRef = doc(firestore, 'users', newUser.uid);
-      await setDoc(userDocRef, {
+      batch.set(userDocRef, {
         id: newUser.uid,
         email: newUser.email,
         role: userRole,
-        username: newUser.email?.split('@')[0] || '',
+        username: newUser.email?.split('@')[0] || `user_${newUser.uid.substring(0,5)}`,
       });
 
       if (isAdmin) {
         const adminRoleRef = doc(firestore, 'roles_admin', newUser.uid);
-        await setDoc(adminRoleRef, { role: 'admin' });
+        batch.set(adminRoleRef, { role: 'admin' });
       }
+
+      await batch.commit();
 
       toast({
         title: 'Success',
@@ -127,6 +135,15 @@ export default function LoginPage() {
       });
     } finally {
       setIsLoading(false);
+      setIsSigningUp(false);
+    }
+  };
+  
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
+    if (isSigningUp) {
+      handleSignUp(values);
+    } else {
+      handleLogin(values);
     }
   };
 
@@ -145,7 +162,7 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleLogin)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
                 control={form.control}
                 name="email"
@@ -181,17 +198,17 @@ export default function LoginPage() {
                 )}
               />
               <div className="flex flex-col space-y-2">
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? 'Loading...' : 'Login'}
+                <Button type="submit" className="w-full" disabled={isLoading} onClick={() => setIsSigningUp(false)}>
+                  {isLoading && !isSigningUp ? 'Loading...' : 'Login'}
                 </Button>
                 <Button
-                  type="button"
+                  type="submit"
                   variant="outline"
                   className="w-full"
-                  onClick={form.handleSubmit(handleSignUp)}
+                  onClick={() => setIsSigningUp(true)}
                   disabled={isLoading}
                 >
-                  Sign Up
+                  {isLoading && isSigningUp ? 'Loading...' : 'Sign Up'}
                 </Button>
               </div>
             </form>
