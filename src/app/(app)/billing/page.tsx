@@ -108,9 +108,9 @@ export default function BillingPage() {
 
   const currentBalance = useMemo(() => {
     if (!transactions || !user) return 0;
-
-    // Regardless of role, we always calculate the balance for the *current* logged-in user.
-    // We filter the transactions array to only include those belonging to the current user.
+    
+    // Always calculate the balance for the *current* logged-in user.
+    // Filter the transactions array to only include those belonging to the current user.
     return transactions
       .filter(t => t.path?.includes(user.uid))
       .reduce((sum, t) => sum + (t.amount || 0), 0);
