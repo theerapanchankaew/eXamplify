@@ -260,7 +260,7 @@ export default function ProfilePage() {
                     Center your face in the frame and capture a new photo.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4">
+                <div className="space-y-4 flex justify-center">
                   {hasCameraPermission === false ? (
                       <Alert variant="destructive">
                         <AlertTitle>Camera Access Required</AlertTitle>
@@ -270,10 +270,10 @@ export default function ProfilePage() {
                       </Alert>
                   ) : capturedImage ? (
                     <div className="flex flex-col items-center space-y-4">
-                      <img src={capturedImage} alt="Captured" className="rounded-md" />
+                      <img src={capturedImage} alt="Captured" className="rounded-full w-64 h-64 object-cover" />
                     </div>
                   ) : (
-                    <video ref={videoRef} className="w-full aspect-video rounded-md bg-muted [-scale-x-100]" autoPlay muted playsInline />
+                    <video ref={videoRef} className="w-64 h-64 rounded-full object-cover bg-muted [-scale-x-100]" autoPlay muted playsInline />
                   )}
                   <canvas ref={canvasRef} className="hidden" />
                 </div>
