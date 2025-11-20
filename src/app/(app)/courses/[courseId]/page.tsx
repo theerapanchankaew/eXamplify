@@ -70,13 +70,20 @@ import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft, GripVertical, MoreVertical, PlusCircle } from 'lucide-react';
 import Link from 'next/link';
+import { ChapterList } from '@/components/course/ChapterList';
 
 const moduleSchema = z.object({
   name: z.string().min(1, 'Module name is required.'),
   description: z.string().min(1, 'Description is required.'),
 });
 
+const chapterSchema = z.object({
+    name: z.string().min(1, 'Chapter name is required.'),
+    content: z.string().min(1, 'Content is required.'),
+});
+
 type ModuleFormData = z.infer<typeof moduleSchema>;
+type ChapterFormData = z.infer<typeof chapterSchema>;
 
 export default function CourseDetailPage() {
   const { courseId } = useParams();
@@ -84,6 +91,17 @@ export default function CourseDetailPage() {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+
+  // Dialog states
+  const [isModuleDialogOpen, setModuleDialogOpen] = useState(false);
+  const [isChapterDialogOpen, setChapterDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  // Selected items for dialogs
+  const [selectedModule, setSelectedModule] = useState<any>(null);
+  const [selectedChapter, setSelectedChapter] = useState<any>(null);
+  const [currentModuleForChapter, setCurrentModuleForChapter] = useState<any>(null);
+  const [itemToDelete, setItemToDelete] = useState<{type: 'module' | 'chapter', data: any} | null>(null);
 
   // User Profile
   const userDocRef = useMemoFirebase(
@@ -109,29 +127,35 @@ export default function CourseDetailPage() {
   );
   const { data: modules, isLoading: isLoadingModules } = useCollection(modulesQuery);
 
-  const [isModuleDialogOpen, setModuleDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedModule, setSelectedModule] = useState<any>(null);
 
-  const form = useForm<ModuleFormData>({
+  const moduleForm = useForm<ModuleFormData>({
     resolver: zodResolver(moduleSchema),
     defaultValues: { name: '', description: '' },
   });
 
+  const chapterForm = useForm<ChapterFormData>({
+    resolver: zodResolver(chapterSchema),
+    defaultValues: { name: '', content: '' },
+  });
+
+  const isCourseOwner = userProfile?.role === 'Admin' || (userProfile?.role === 'Instructor' && course?.instructorId === user?.uid);
+  const isLoading = isLoadingProfile || isLoadingCourse || isLoadingModules;
+
+  // Module handlers
   const handleAddModule = () => {
     setSelectedModule(null);
-    form.reset({ name: '', description: '' });
+    moduleForm.reset({ name: '', description: '' });
     setModuleDialogOpen(true);
   };
 
   const handleEditModule = (module: any) => {
     setSelectedModule(module);
-    form.reset({ name: module.name, description: module.description });
+    moduleForm.reset({ name: module.name, description: module.description });
     setModuleDialogOpen(true);
   };
 
   const handleDeleteModule = (module: any) => {
-    setSelectedModule(module);
+    setItemToDelete({ type: 'module', data: module });
     setDeleteDialogOpen(true);
   };
 
@@ -157,27 +181,67 @@ export default function CourseDetailPage() {
     }
   };
 
-  const confirmDeleteModule = async () => {
-    if (!firestore || !courseId || !selectedModule) return;
-    try {
-      const moduleDocRef = doc(
-        firestore,
-        'courses',
-        courseId as string,
-        'modules',
-        selectedModule.id
-      );
-      await deleteDoc(moduleDocRef);
-      toast({ title: 'Success', description: 'Module deleted successfully.' });
-    } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
-    } finally {
-      setDeleteDialogOpen(false);
-    }
+  // Chapter handlers
+  const handleAddChapter = (module: any) => {
+      setSelectedChapter(null);
+      setCurrentModuleForChapter(module);
+      chapterForm.reset({ name: '', content: '' });
+      setChapterDialogOpen(true);
+  };
+  
+  const handleEditChapter = (chapter: any, module: any) => {
+      setSelectedChapter(chapter);
+      setCurrentModuleForChapter(module);
+      chapterForm.reset({ name: chapter.name, content: chapter.content });
+      setChapterDialogOpen(true);
   };
 
-  const isCourseOwner = userProfile?.role === 'Admin' || (userProfile?.role === 'Instructor' && course?.instructorId === user?.uid);
-  const isLoading = isLoadingProfile || isLoadingCourse || isLoadingModules;
+  const handleDeleteChapter = (chapter: any, module: any) => {
+      setItemToDelete({ type: 'chapter', data: { chapter, module } });
+      setDeleteDialogOpen(true);
+  };
+
+  const handleChapterSubmit = async (data: ChapterFormData) => {
+      if (!firestore || !courseId || !currentModuleForChapter) return;
+      const chaptersColRef = collection(firestore, 'courses', courseId as string, 'modules', currentModuleForChapter.id, 'chapters');
+      try {
+          if (selectedChapter) {
+              const chapterDocRef = doc(chaptersColRef, selectedChapter.id);
+              await updateDoc(chapterDocRef, data);
+              toast({ title: 'Success', description: 'Chapter updated successfully.' });
+          } else {
+              await addDoc(chaptersColRef, { ...data, moduleId: currentModuleForChapter.id, createdAt: serverTimestamp() });
+              toast({ title: 'Success', description: 'Chapter created successfully.' });
+          }
+          setChapterDialogOpen(false);
+      } catch (error: any) {
+          toast({ variant: 'destructive', title: 'Error', description: error.message });
+      }
+  };
+
+
+  const confirmDelete = async () => {
+    if (!firestore || !courseId || !itemToDelete) return;
+    const { type, data } = itemToDelete;
+
+    try {
+        if (type === 'module') {
+            const moduleDocRef = doc(firestore, 'courses', courseId as string, 'modules', data.id);
+            await deleteDoc(moduleDocRef);
+            toast({ title: 'Success', description: 'Module deleted successfully.' });
+        } else if (type === 'chapter') {
+            const { chapter, module } = data;
+            const chapterDocRef = doc(firestore, 'courses', courseId as string, 'modules', module.id, 'chapters', chapter.id);
+            await deleteDoc(chapterDocRef);
+            toast({ title: 'Success', description: 'Chapter deleted successfully.' });
+        }
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } finally {
+        setDeleteDialogOpen(false);
+        setItemToDelete(null);
+    }
+};
 
   if (isLoading) {
     return (
@@ -247,7 +311,7 @@ export default function CourseDetailPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Module Actions</DropdownMenuLabel>
-                           <DropdownMenuItem onClick={() => { /* Add Chapter */ }}>Add Chapter</DropdownMenuItem>
+                           <DropdownMenuItem onClick={() => handleAddChapter(module)}>Add Chapter</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleEditModule(module)}>Edit Module</DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
@@ -262,15 +326,14 @@ export default function CourseDetailPage() {
                   </div>
                   <AccordionContent className="pl-8">
                     <p className="mb-4">{module.description}</p>
-                    <div className="border-l-2 pl-4 space-y-2">
-                        {/* Chapters will be rendered here */}
-                        <p className="text-muted-foreground text-sm">No chapters in this module yet.</p>
-                         {isCourseOwner && (
-                            <Button variant="outline" size="sm">
-                                <PlusCircle className="mr-2 h-4 w-4" /> Add Chapter
-                            </Button>
-                         )}
-                    </div>
+                     <ChapterList 
+                        courseId={courseId as string} 
+                        module={module}
+                        isCourseOwner={isCourseOwner}
+                        onEditChapter={handleEditChapter}
+                        onDeleteChapter={handleDeleteChapter}
+                        onAddChapter={() => handleAddChapter(module)}
+                     />
                   </AccordionContent>
                 </AccordionItem>
               ))}
@@ -295,10 +358,10 @@ export default function CourseDetailPage() {
               Fill in the details for your module.
             </DialogDescription>
           </DialogHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleModuleSubmit)} className="space-y-4">
+          <Form {...moduleForm}>
+            <form onSubmit={moduleForm.handleSubmit(handleModuleSubmit)} className="space-y-4">
               <FormField
-                control={form.control}
+                control={moduleForm.control}
                 name="name"
                 render={({ field }) => (
                   <FormItem>
@@ -311,7 +374,7 @@ export default function CourseDetailPage() {
                 )}
               />
               <FormField
-                control={form.control}
+                control={moduleForm.control}
                 name="description"
                 render={({ field }) => (
                   <FormItem>
@@ -325,7 +388,7 @@ export default function CourseDetailPage() {
               />
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setModuleDialogOpen(false)}>Cancel</Button>
-                <Button type="submit" disabled={form.formState.isSubmitting}>
+                <Button type="submit" disabled={moduleForm.formState.isSubmitting}>
                   {selectedModule ? 'Save Changes' : 'Create Module'}
                 </Button>
               </DialogFooter>
@@ -334,23 +397,72 @@ export default function CourseDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Module Confirmation */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to delete this module?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone and will permanently delete the module and all its contents (chapters, lessons, etc.).
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteModule} className={buttonVariants({ variant: "destructive" })}>
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Chapter Dialog */}
+        <Dialog open={isChapterDialogOpen} onOpenChange={setChapterDialogOpen}>
+            <DialogContent>
+            <DialogHeader>
+                <DialogTitle>{selectedChapter ? 'Edit Chapter' : 'Add New Chapter'}</DialogTitle>
+                <DialogDescription>
+                Fill in the details for your chapter.
+                </DialogDescription>
+            </DialogHeader>
+            <Form {...chapterForm}>
+                <form onSubmit={chapterForm.handleSubmit(handleChapterSubmit)} className="space-y-4">
+                <FormField
+                    control={chapterForm.control}
+                    name="name"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Chapter Name</FormLabel>
+                        <FormControl>
+                        <Input placeholder="e.g., Understanding HTML" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+                <FormField
+                    control={chapterForm.control}
+                    name="content"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Chapter Content</FormLabel>
+                        <FormControl>
+                        <Textarea placeholder="Explain the main concepts of this chapter." {...field} />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+                <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setChapterDialogOpen(false)}>Cancel</Button>
+                    <Button type="submit" disabled={chapterForm.formState.isSubmitting}>
+                        {selectedChapter ? 'Save Changes' : 'Create Chapter'}
+                    </Button>
+                </DialogFooter>
+                </form>
+            </Form>
+            </DialogContent>
+        </Dialog>
+
+
+      {/* Delete Confirmation */}
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+            <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                This action cannot be undone and will permanently delete the {itemToDelete?.type} and all its contents.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={confirmDelete} className={buttonVariants({ variant: "destructive" })}>
+                Delete
+                </AlertDialogAction>
+            </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     </div>
   );
 }

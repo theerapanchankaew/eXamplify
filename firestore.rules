@@ -168,7 +168,7 @@ service cloud.firestore {
      */
     match /courses/{courseId}/modules/{moduleId} {
       allow get, list: if true; // TODO: Restrict reads to approved enrolled students
-      allow create: if isCourseInstructor(courseId) && request.resource.data.courseId == courseId;
+      allow create: if (isCourseInstructor(courseId) || isAdmin()) && request.resource.data.courseId == courseId;
       allow update, delete: if isCourseInstructor(courseId) || isAdmin();
     }
 
