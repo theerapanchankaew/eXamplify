@@ -64,28 +64,36 @@ service cloud.firestore {
     function hasValidUserCreateData(userId) {
       return request.resource.data.id == userId;
     }
-
+    
     /**
      * Checks if the only field being changed is the 'role'.
+     * This function is crucial for allowing admins to manage roles without
+     * being able to alter other user data. It ensures that any key other
+     * than 'role' remains unchanged during an update operation by an admin.
      */
     function isChangingOnlyRole() {
-      // Get all keys from the new data and the existing data.
+      // Get a combined set of all keys from the old and new data.
       let allKeys = request.resource.data.keys().concat(resource.data.keys()).toSet();
-      // Define the keys that are allowed to be different. In this case, only 'role'.
+      // Define the set of keys that are allowed to be modified by an admin.
       let mutableKeys = ['role'].toSet();
-      // Check every key.
+      
+      // The operation is valid if every key in the combined set either:
+      // 1. Is one of the explicitly mutable keys ('role').
+      // 2. Or, if it's not a mutable key, its value must be identical in both the before and after states.
       return allKeys.size() > 0 && allKeys.every(key =>
-        // If the key is 'role', it can be different.
         mutableKeys.has(key) ||
-        // If the key is not 'role', its value must be the same in both old and new data.
         (key in request.resource.data && key in resource.data && request.resource.data[key] == resource.data[key])
       );
     }
 
     /**
      * Checks if the 'role' field is not being changed.
+     * This function is used to ensure that a regular user (non-admin)
+     * cannot escalate their own privileges by modifying the 'role' field.
      */
     function isRoleUnchanged() {
+      // The update is safe if the 'role' key doesn't exist in the incoming data,
+      // or if it exists but its value is the same as the existing value.
       return !('role' in request.resource.data) || request.resource.data.role == resource.data.role;
     }
 
@@ -125,8 +133,8 @@ service cloud.firestore {
      * @description Stores a user's primary profile data.
      * @path /users/{userId}
      * @allow A new user (create) their own profile: auth.uid = 'user_123', path = /users/user_123
-     * @deny A user (update) another user's profile: auth.uid = 'user_123', path = /users/user_456
-     * @principle Enforces self-management of user profiles and prevents user enumeration for non-admins.
+     * @deny A user (update) another user's profile role: auth.uid = 'user_123', path = /users/user_456
+     * @principle Enforces self-management of user profiles and allows admin role management.
      */
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
