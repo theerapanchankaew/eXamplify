@@ -86,7 +86,7 @@ export default function ProfilePage() {
   }, [userProfile, form]);
 
   const handleUpdateProfile = async (data: ProfileFormData) => {
-    if (!user || !firestore) {
+    if (!user || !firestore || !auth.currentUser) {
       toast({
         variant: 'destructive',
         title: 'Error',
@@ -99,9 +99,9 @@ export default function ProfilePage() {
       const userDocRef = doc(firestore, 'users', user.uid);
       await updateDoc(userDocRef, { username: data.username });
 
-      if (auth.currentUser) {
-        await updateProfile(auth.currentUser, { displayName: data.username });
-      }
+      // Only update displayName in auth, not photoURL as it's too long
+      await updateProfile(auth.currentUser, { displayName: data.username });
+
 
       toast({
         title: 'Profile Updated',
@@ -149,7 +149,7 @@ export default function ProfilePage() {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      const size = 128; // Define a smaller size for the profile picture
+      const size = 128; // Keep it small to avoid large data URLs
       canvas.width = size;
       canvas.height = size;
       const context = canvas.getContext('2d');
@@ -188,12 +188,7 @@ export default function ProfilePage() {
     if (!capturedImage || !auth.currentUser || !firestore) return;
   
     try {
-      // The capturedImage is a base64 data URL, which is long.
-      // For production, you'd upload this to Firebase Storage and get a URL.
-      // For this example, we'll store the data URL directly in Auth and Firestore.
-      await updateProfile(auth.currentUser, { photoURL: capturedImage });
-  
-      // Update Firestore document
+      // **SOLUTION**: Save the long data URL to Firestore instead of Auth.
       const userDocRef = doc(firestore, 'users', auth.currentUser.uid);
       await updateDoc(userDocRef, { photoURL: capturedImage });
   
@@ -245,6 +240,8 @@ export default function ProfilePage() {
     return <div>Please log in to view your profile.</div>;
   }
 
+  const displayPhotoUrl = userProfile?.photoURL || user.photoURL || `https://picsum.photos/seed/${user.uid}/100/100`;
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Profile</h1>
@@ -262,7 +259,7 @@ export default function ProfilePage() {
                 <div className="relative group cursor-pointer">
                   <Avatar className="h-24 w-24" data-ai-hint="person face">
                     <AvatarImage
-                      src={user.photoURL || `https://picsum.photos/seed/${user.uid}/100/100`}
+                      src={displayPhotoUrl}
                       alt="User Avatar"
                     />
                     <AvatarFallback>

@@ -64,6 +64,8 @@ export function AppHeader() {
   };
   
   const isLoading = isLoadingTokens || isLoadingProfile;
+  const displayPhotoUrl = userProfile?.photoURL || user?.photoURL || `https://picsum.photos/seed/${user?.uid}/40/40`;
+
 
   return (
     <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
@@ -106,7 +108,7 @@ export function AppHeader() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
                 <Avatar className="h-9 w-9" data-ai-hint="person face">
-                  <AvatarImage src={user.photoURL || `https://picsum.photos/seed/${user.uid}/40/40`} alt="User" />
+                  <AvatarImage src={displayPhotoUrl} alt="User" />
                   <AvatarFallback>{userProfile?.username?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase()}</AvatarFallback>
                 </Avatar>
               </Button>
