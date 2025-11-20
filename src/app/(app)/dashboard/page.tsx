@@ -43,6 +43,15 @@ export default function DashboardPage() {
   const { data: users, isLoading: isLoadingUsers } = useCollection(
     usersCollectionQuery
   );
+
+  const coursesCollectionQuery = useMemoFirebase(
+    () => (firestore ? query(collection(firestore, 'courses')) : null),
+    [firestore]
+  );
+
+  const { data: courses, isLoading: isLoadingCourses } = useCollection(
+    coursesCollectionQuery
+  );
   
   return (
     <div className="flex min-h-screen w-full flex-col">
@@ -89,8 +98,17 @@ export default function DashboardPage() {
               <BookOpen className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">+120</div>
-              <p className="text-xs text-muted-foreground">+19 from last month</p>
+              {isLoadingCourses ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-8 w-24" />
+                  <Skeleton className="h-4 w-32" />
+                </div>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">{courses?.length || 0}</div>
+                  <p className="text-xs text-muted-foreground">Total available courses</p>
+                </>
+              )}
             </CardContent>
           </Card>
           <Card>
