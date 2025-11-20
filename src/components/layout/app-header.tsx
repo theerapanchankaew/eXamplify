@@ -16,25 +16,44 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { SidebarTrigger } from '../ui/sidebar';
 import { PageTitle } from './page-title';
 import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, collectionGroup } from 'firebase/firestore';
+import { collection, query, collectionGroup, doc } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMemo } from 'react';
+import { useDoc } from '@/firebase/firestore/use-doc';
 
 export function AppHeader() {
   const { user } = useUser();
   const auth = useAuth();
   const firestore = useFirestore();
 
-  const userTokenTransactionsQuery = useMemoFirebase(
-    () => (firestore && user ? query(collection(firestore, 'users', user.uid, 'tokenTransactions')) : null),
+  const userDocRef = useMemoFirebase(
+    () => (firestore && user ? doc(firestore, 'users', user.uid) : null),
     [firestore, user]
   );
+  const { data: userProfile, isLoading: isLoadingProfile } = useDoc(userDocRef);
 
-  const { data: tokenTransactions, isLoading: isLoadingTokens } = useCollection(userTokenTransactionsQuery);
+  const transactionsQuery = useMemoFirebase(
+    () => {
+      if (!firestore || !userProfile) return null;
+      // If admin, get all transactions to be able to derive personal balance
+      if (userProfile.role === 'Admin') {
+        return query(collectionGroup(firestore, 'tokenTransactions'));
+      }
+      // For other users, get only their own transactions
+      return query(collection(firestore, 'users', user.uid, 'tokenTransactions'));
+    },
+    [firestore, user, userProfile]
+  );
 
-  const totalUserTokens = useMemo(
-    () => tokenTransactions?.reduce((sum, transaction) => sum + (transaction.amount || 0), 0) || 0,
-    [tokenTransactions]
+  const { data: transactions, isLoading: isLoadingTokens } = useCollection(transactionsQuery);
+
+  const totalUserTokens = useMemo(() => {
+      if (!transactions || !user) return 0;
+      // Always filter the transactions to get the balance for the currently logged-in user.
+      const userTransactions = transactions.filter(t => t.path?.includes(user.uid));
+      return userTransactions.reduce((sum, transaction) => sum + (transaction.amount || 0), 0);
+    },
+    [transactions, user]
   );
 
 
@@ -43,6 +62,8 @@ export function AppHeader() {
       await signOut(auth);
     }
   };
+  
+  const isLoading = isLoadingTokens || isLoadingProfile;
 
   return (
     <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
@@ -68,7 +89,7 @@ export function AppHeader() {
             <Wallet className="h-5 w-5" />
             <span className="sr-only">Wallet</span>
           </Button>
-          {isLoadingTokens ? (
+          {isLoading ? (
              <Skeleton className="h-5 w-12" />
           ) : (
             <span className="font-semibold text-sm">{totalUserTokens.toLocaleString()}</span>
