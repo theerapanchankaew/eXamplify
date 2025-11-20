@@ -107,15 +107,12 @@ export default function BillingPage() {
 
   const { data: transactions, isLoading: isLoadingTransactions } = useCollection(transactionsQuery);
 
-  const myTransactions = useMemo(
-    () => transactions?.filter(t => t.path?.includes(user?.uid || '')) || [],
-    [transactions, user]
-  );
-
   const currentBalance = useMemo(
     () =>
-      myTransactions?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0,
-    [myTransactions]
+      transactions
+        ?.filter(t => t.path?.includes(user?.uid || ''))
+        .reduce((sum, t) => sum + (t.amount || 0), 0) || 0,
+    [transactions, user]
   );
   
   const form = useForm<TopUpFormData>({
@@ -186,8 +183,8 @@ export default function BillingPage() {
   const enrichedTransactions = useMemo(() => {
     if (isLoading || !transactions || !users) return [];
     if(userProfile?.role !== 'Admin') {
-      // Non-admins see only their transactions, user info is not needed
-      return myTransactions;
+      // Non-admins see only their transactions, so filter them.
+      return transactions.filter(t => t.path?.includes(user?.uid || ''));
     }
     // Admins see all transactions, so we enrich them with user details.
     return transactions.map(t => {
@@ -196,7 +193,7 @@ export default function BillingPage() {
       const transactionUser = users.find(u => u.id === userId);
       return { ...t, user: transactionUser };
     });
-  }, [isLoading, transactions, users, userProfile, myTransactions]);
+  }, [isLoading, transactions, users, userProfile, user]);
 
   return (
     <div className="w-full space-y-8">
@@ -383,3 +380,5 @@ export default function BillingPage() {
     </div>
   );
 }
+
+    
