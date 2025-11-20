@@ -5,7 +5,7 @@ import { AppSidebar } from '@/components/layout/app-sidebar';
 import { AppHeader } from '@/components/layout/app-header';
 import { useUser } from '@/firebase';
 import { redirect } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function AppLayout({
   children,
@@ -13,15 +13,20 @@ export default function AppLayout({
   children: React.ReactNode;
 }>) {
   const { user, isUserLoading } = useUser();
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    if (!isUserLoading && !user) {
+    setIsClient(true);
+  }, []);
+
+  useEffect(() => {
+    if (isClient && !isUserLoading && !user) {
       redirect('/login');
     }
-  }, [user, isUserLoading]);
+  }, [user, isUserLoading, isClient]);
 
 
-  if (isUserLoading) {
+  if (!isClient || isUserLoading) {
     return (
         <div className="flex h-screen items-center justify-center">
             <p>Loading...</p>
