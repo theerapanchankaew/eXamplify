@@ -11,6 +11,7 @@ import {
   BarChart2,
   MessageSquare,
   Settings,
+  User,
 } from 'lucide-react';
 
 export const menuItems: NavItem[] = [
@@ -23,6 +24,11 @@ export const menuItems: NavItem[] = [
     label: 'Users',
     href: '/users',
     icon: Users,
+  },
+    {
+    label: 'Profile',
+    href: '/profile',
+    icon: User,
   },
   {
     label: 'Courses',

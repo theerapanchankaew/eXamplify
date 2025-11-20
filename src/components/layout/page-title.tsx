@@ -1,13 +1,13 @@
 'use client';
 import { usePathname } from 'next/navigation';
-import { menuItems } from '@/lib/menu-items';
+import { menuItems, settingsItem } from '@/lib/menu-items';
 
 export function PageTitle() {
   const pathname = usePathname();
 
   let title = 'Dashboard'; // Default title
   if (pathname === '/settings') {
-    title = 'Settings';
+    title = settingsItem.label;
   } else {
     const currentItem = menuItems.find(item => item.href !== '/dashboard' && pathname.startsWith(item.href));
     if (currentItem) {
