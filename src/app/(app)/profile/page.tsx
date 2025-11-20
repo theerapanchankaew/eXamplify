@@ -159,21 +159,25 @@ export default function ProfilePage() {
   };
 
   const handleSavePicture = async () => {
-    if (!capturedImage || !auth.currentUser) return;
-
+    if (!capturedImage || !auth.currentUser || !firestore) return;
+  
     try {
+      // The capturedImage is a base64 data URL, which is long.
+      // For production, you'd upload this to Firebase Storage and get a URL.
+      // For this example, we'll store the data URL directly in Auth and Firestore.
       await updateProfile(auth.currentUser, { photoURL: capturedImage });
-      
+  
+      // Update Firestore document
       const userDocRef = doc(firestore, 'users', auth.currentUser.uid);
       await updateDoc(userDocRef, { photoURL: capturedImage });
-
+  
       toast({
         title: 'Success',
-        description: 'Your profile picture has been updated.'
+        description: 'Your profile picture has been updated.',
       });
-      handleDialogOpenChange(false);
+      handleDialogOpenChange(false); // This will also stop the camera stream
     } catch (error: any) {
-       toast({
+      toast({
         variant: 'destructive',
         title: 'Update Failed',
         description: error.message,
@@ -247,7 +251,7 @@ export default function ProfilePage() {
                 <DialogHeader>
                   <DialogTitle>Update Profile Picture</DialogTitle>
                   <DialogDescription>
-                    Capture a new photo using your webcam for identity verification.
+                    Center your face in the frame and capture a new photo.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
@@ -274,7 +278,7 @@ export default function ProfilePage() {
                       <Button onClick={handleSavePicture}>Save Picture</Button>
                     </>
                   ) : (
-                    <Button onClick={handleCapture} disabled={hasCameraPermission === false}>
+                    <Button onClick={handleCapture} disabled={hasCameraPermission !== true}>
                       <Camera className="mr-2 h-4 w-4" />
                       Capture
                     </Button>
