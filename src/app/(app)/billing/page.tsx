@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -30,6 +31,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { useCollection, useDoc, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import {
@@ -39,11 +47,14 @@ import {
   query,
   orderBy,
   doc,
+  collectionGroup,
 } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { CreditCard, Wallet } from 'lucide-react';
+import { CreditCard, Wallet, User as UserIcon } from 'lucide-react';
 import { format } from 'date-fns';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+
 
 const topUpSchema = z.object({
   amount: z
@@ -53,6 +64,7 @@ const topUpSchema = z.object({
     })
     .min(1, 'Amount must be at least 1.')
     .positive('Amount must be positive.'),
+  userId: z.string().min(1, "Please select a user."),
 });
 
 type TopUpFormData = z.infer<typeof topUpSchema>;
@@ -68,29 +80,49 @@ export default function BillingPage() {
   );
   const { data: userProfile, isLoading: isLoadingProfile } = useDoc(userDocRef);
 
+  const usersCollectionQuery = useMemoFirebase(
+    () => (firestore ? query(collection(firestore, 'users')) : null),
+    [firestore]
+  );
+  const { data: users, isLoading: isLoadingUsers } = useCollection(usersCollectionQuery);
+
   const transactionsQuery = useMemoFirebase(
-    () =>
-      firestore && user
-        ? query(
-            collection(firestore, 'users', user.uid, 'tokenTransactions'),
-            orderBy('timestamp', 'desc')
-          )
-        : null,
-    [firestore, user]
+    () => {
+      if (!firestore || !userProfile) return null;
+      if (userProfile.role === 'Admin') {
+        // Admin sees all transactions
+        return query(
+          collectionGroup(firestore, 'tokenTransactions'),
+          orderBy('timestamp', 'desc')
+        );
+      }
+      // Regular user sees only their own transactions
+      return query(
+        collection(firestore, 'users', user.uid, 'tokenTransactions'),
+        orderBy('timestamp', 'desc')
+      );
+    },
+    [firestore, user, userProfile]
   );
 
   const { data: transactions, isLoading: isLoadingTransactions } = useCollection(transactionsQuery);
 
-  const currentBalance = useMemo(
-    () =>
-      transactions?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0,
-    [transactions]
+  const userTransactions = useMemo(
+    () => transactions?.filter(t => t.path?.includes(user?.uid || '')) || [],
+    [transactions, user]
   );
 
+  const currentBalance = useMemo(
+    () =>
+      userTransactions?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0,
+    [userTransactions]
+  );
+  
   const form = useForm<TopUpFormData>({
     resolver: zodResolver(topUpSchema),
     defaultValues: {
       amount: undefined,
+      userId: undefined,
     },
   });
 
@@ -104,21 +136,25 @@ export default function BillingPage() {
       return;
     }
     try {
+      const { userId, amount } = data;
       const transactionsColRef = collection(
         firestore,
         'users',
-        user.uid,
+        userId,
         'tokenTransactions'
       );
       await addDoc(transactionsColRef, {
-        amount: data.amount,
+        amount: amount,
         transactionType: 'top-up',
         timestamp: serverTimestamp(),
-        description: `Admin top-up`,
+        description: `Top-up by Admin`,
       });
+      
+      const toppedUpUser = users?.find(u => u.id === userId);
+
       toast({
         title: 'Success',
-        description: `${data.amount} tokens have been added to your wallet.`,
+        description: `${amount} tokens have been added to ${toppedUpUser?.username || 'the user'}'s wallet.`,
       });
       form.reset();
     } catch (error: any) {
@@ -143,7 +179,18 @@ export default function BillingPage() {
     }
   };
   
-  const isLoading = isLoadingTransactions || isLoadingProfile;
+  const isLoading = isLoadingTransactions || isLoadingProfile || isLoadingUsers;
+
+  // Enhance transactions with user info
+  const enrichedTransactions = useMemo(() => {
+    if (isLoading || !transactions || !users) return [];
+    return transactions.map(t => {
+      // path is like 'users/USER_ID/tokenTransactions/TRANSACTION_ID'
+      const userId = t.path?.split('/')[1];
+      const transactionUser = users.find(u => u.id === userId);
+      return { ...t, user: transactionUser };
+    });
+  }, [isLoading, transactions, users]);
 
   return (
     <div className="w-full space-y-8">
@@ -158,12 +205,12 @@ export default function BillingPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Current Balance
+              My Balance
             </CardTitle>
             <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {isLoading ? (
+            {isLoadingProfile || isLoadingTransactions ? (
               <Skeleton className="h-8 w-32" />
             ) : (
               <div className="text-2xl font-bold">{currentBalance.toLocaleString()} Tokens</div>
@@ -180,7 +227,8 @@ export default function BillingPage() {
                     <Skeleton className="h-6 w-32" />
                     <Skeleton className="h-4 w-48" />
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
+                    <Skeleton className="h-10 w-full" />
                     <Skeleton className="h-10 w-full" />
                 </CardContent>
                 <CardFooter>
@@ -192,12 +240,34 @@ export default function BillingPage() {
             <CardHeader>
                 <CardTitle>Top-up Tokens</CardTitle>
                 <CardDescription>
-                Add more tokens to your wallet. 1 Token = 0.01 THB.
+                Add tokens to a user's wallet. 1 Token = 0.01 THB.
                 </CardDescription>
             </CardHeader>
             <Form {...form}>
                 <form onSubmit={form.handleSubmit(handleTopUp)}>
                 <CardContent className="space-y-4">
+                     <FormField
+                      control={form.control}
+                      name="userId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>User</FormLabel>
+                           <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select a user to top-up" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {users?.map(user => (
+                                <SelectItem key={user.id} value={user.id}>{user.username || user.email}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                     <FormField
                     control={form.control}
                     name="amount"
@@ -235,7 +305,7 @@ export default function BillingPage() {
         <CardHeader>
           <CardTitle>Transaction History</CardTitle>
           <CardDescription>
-            A record of all your token transactions.
+            A record of all token transactions in the system.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -243,29 +313,42 @@ export default function BillingPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Date</TableHead>
+                {userProfile?.role === 'Admin' && <TableHead>User</TableHead>}
                 <TableHead>Description</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoadingTransactions ? (
+              {isLoading ? (
                 Array.from({ length: 3 }).map((_, i) => (
                   <TableRow key={i}>
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                    {userProfile?.role === 'Admin' && <TableCell><Skeleton className="h-5 w-32" /></TableCell>}
                     <TableCell><Skeleton className="h-5 w-40" /></TableCell>
                     <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
                     <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
                   </TableRow>
                 ))
-              ) : transactions && transactions.length > 0 ? (
-                transactions.map((t) => (
+              ) : enrichedTransactions && enrichedTransactions.length > 0 ? (
+                enrichedTransactions.map((t) => (
                   <TableRow key={t.id}>
                     <TableCell className="font-medium">
                       {t.timestamp
                         ? format(t.timestamp.toDate(), 'PPP')
                         : 'Date not available'}
                     </TableCell>
+                    {userProfile?.role === 'Admin' && (
+                       <TableCell>
+                         <div className="flex items-center gap-2">
+                           <Avatar className="h-6 w-6" data-ai-hint="person face">
+                             <AvatarImage src={`https://picsum.photos/seed/${t.user?.id}/30/30`} />
+                             <AvatarFallback>{t.user?.username?.charAt(0) || 'U'}</AvatarFallback>
+                           </Avatar>
+                           <span>{t.user?.username || t.user?.email || 'N/A'}</span>
+                         </div>
+                       </TableCell>
+                    )}
                     <TableCell>{t.description || 'N/A'}</TableCell>
                     <TableCell>
                       <Badge variant={getBadgeVariant(t.transactionType)}>
@@ -279,7 +362,7 @@ export default function BillingPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center">
+                  <TableCell colSpan={userProfile?.role === 'Admin' ? 5 : 4} className="text-center">
                     No transactions yet.
                   </TableCell>
                 </TableRow>
@@ -291,3 +374,6 @@ export default function BillingPage() {
     </div>
   );
 }
+
+
+    
