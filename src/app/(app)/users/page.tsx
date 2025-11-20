@@ -302,7 +302,7 @@ export default function UsersPage() {
                       <div className="flex items-center gap-3">
                         <Avatar className="hidden h-9 w-9 sm:flex" data-ai-hint="person face">
                           <AvatarImage
-                            src={`https://picsum.photos/seed/${user.id}/40/40`}
+                            src={user.photoURL || `https://picsum.photos/seed/${user.id}/40/40`}
                             alt="Avatar"
                           />
                           <AvatarFallback>
@@ -511,3 +511,5 @@ export default function UsersPage() {
     </>
   );
 }
+
+    
