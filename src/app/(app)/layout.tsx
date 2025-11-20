@@ -12,7 +12,7 @@ function AppLayoutSkeleton() {
   return (
     <SidebarProvider>
       <div className="hidden md:block">
-        <div className="w-64 border-r bg-background p-4">
+        <div className="w-64 border-r bg-background p-4 h-screen flex flex-col">
           <div className="mb-8 flex items-center gap-2.5">
             <Skeleton className="h-8 w-8" />
             <Skeleton className="h-6 w-24" />
@@ -33,7 +33,6 @@ function AppLayoutSkeleton() {
           <Skeleton className="h-6 w-32" />
           <div className="ml-auto flex items-center gap-4">
             <Skeleton className="h-6 w-20" />
-            <Skeleton className="h-9 w-9 rounded-full" />
             <Skeleton className="h-9 w-9 rounded-full" />
           </div>
         </header>
@@ -59,19 +58,12 @@ export default function AppLayoutClient({
   }, []);
 
   useEffect(() => {
-    // ใช้ router.replace แทน redirect
     if (isMounted && !isUserLoading && !user) {
       router.replace('/login');
     }
   }, [user, isUserLoading, isMounted, router]);
 
-  // แสดง skeleton ขณะ loading
-  if (!isMounted || isUserLoading) {
-    return <AppLayoutSkeleton />;
-  }
-
-  // ถ้าไม่มี user ให้แสดง skeleton (ก่อนที่จะ redirect)
-  if (!user) {
+  if (!isMounted || isUserLoading || !user) {
     return <AppLayoutSkeleton />;
   }
 
