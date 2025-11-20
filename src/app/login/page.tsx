@@ -29,7 +29,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { redirect } from 'next/navigation';
-import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Invalid email address.' }),
@@ -79,14 +78,22 @@ export default function LoginPage() {
       );
       const newUser = userCredential.user;
 
+      const isAdmin = values.email === 'admin@masci.com';
+      const userRole = isAdmin ? 'Admin' : 'Student';
+
       // Create user document in Firestore
       const userDocRef = doc(firestore, 'users', newUser.uid);
       await setDoc(userDocRef, {
         id: newUser.uid,
         email: newUser.email,
-        role: 'Student', // Default role
+        role: userRole,
         username: newUser.email?.split('@')[0] || '',
       });
+
+      if (isAdmin) {
+        const adminRoleRef = doc(firestore, 'roles_admin', newUser.uid);
+        await setDoc(adminRoleRef, { role: 'admin' });
+      }
 
       toast({
         title: 'Success',
