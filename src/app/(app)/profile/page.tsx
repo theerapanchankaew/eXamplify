@@ -26,6 +26,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useEffect } from 'react';
+import { Badge } from '@/components/ui/badge';
 
 const profileSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters long.'),
@@ -139,9 +140,10 @@ export default function ProfilePage() {
                 {user.email ? user.email.charAt(0).toUpperCase() : 'U'}
               </AvatarFallback>
             </Avatar>
-            <div>
+            <div className="space-y-1">
                 <p className="text-2xl font-semibold">{userProfile?.username || 'User'}</p>
                 <p className="text-muted-foreground">{user.email}</p>
+                {userProfile?.role && <Badge>{userProfile.role}</Badge>}
             </div>
           </div>
 
