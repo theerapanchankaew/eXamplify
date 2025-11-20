@@ -167,27 +167,38 @@ export default function UsersPage() {
   const handleCreateUser = async (data: NewUserFormData) => {
     if (!firestore || !auth) return;
 
-    // This is a workaround for client-side user creation.
-    // A backend function is recommended for production environments
-    // to avoid admin re-authentication issues.
-    // We create a temporary user on the client, then the admin can complete setup.
-    // For this demo, we'll proceed, but it might fail if the admin's session is old.
+    // This is a client-side user creation flow. For enhanced security and to avoid
+    // potential issues with short-lived admin auth tokens, it's recommended to move
+    // this logic to a secure backend environment (e.g., a Cloud Function) in a
+    // production application.
     try {
-        const tempAuth = auth; // This might need a re-authenticated instance in a real app.
-        
-        // We can't create a user and get the UID without actually creating an auth record.
-        // In a real app, this should be a server-side (Cloud Function) operation
-        // that can create the user and the Firestore documents atomically.
-        
-        // For this client-side implementation, we show a toast and acknowledge the limitation.
-        toast({
-            title: 'Manual User Creation Required',
-            description: "For security, please create the user in the Firebase Authentication console, then add their details here.",
-            duration: 9000,
+        const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+        const newUser = userCredential.user;
+
+        const batch = writeBatch(firestore);
+
+        const userDocRef = doc(firestore, 'users', newUser.uid);
+        batch.set(userDocRef, {
+            id: newUser.uid,
+            email: data.email,
+            role: data.role,
+            username: data.username,
         });
-        
-        // This is a placeholder for where a server-side call would go.
-        console.log("Attempting to create user client-side (may require re-auth):", data);
+
+        if (data.role === 'Admin') {
+            const adminRoleRef = doc(firestore, 'roles_admin', newUser.uid);
+            batch.set(adminRoleRef, { role: 'admin' });
+        }
+
+        await batch.commit();
+
+        toast({
+            title: 'User Created',
+            description: `User ${data.email} has been created successfully.`,
+        });
+
+        setAddUserDialogOpen(false);
+        newUserForm.reset();
 
     } catch (error: any) {
         toast({
