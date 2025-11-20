@@ -9,61 +9,65 @@ import { useEffect, useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 function AppLayoutSkeleton() {
-    return (
-      <div className="flex h-screen w-full flex-col">
+  return (
+    <div className="flex min-h-screen w-full">
+      {/* Sidebar Skeleton */}
+      <div className="hidden w-64 flex-col border-r bg-background p-4 md:flex">
+        <div className="mb-8 flex items-center gap-2.5">
+          <Skeleton className="h-8 w-8" />
+          <Skeleton className="h-6 w-24" />
+        </div>
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <Skeleton key={i} className="h-8 w-full" />
+          ))}
+        </div>
+        <div className="mt-auto">
+          <Skeleton className="h-8 w-full" />
+        </div>
+      </div>
+
+      {/* Main Content Skeleton */}
+      <div className="flex flex-1 flex-col">
+        {/* Header Skeleton */}
         <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
           <Skeleton className="h-7 w-7 md:hidden" />
           <Skeleton className="h-6 w-32" />
           <div className="ml-auto flex items-center gap-4">
-            <Skeleton className="h-8 w-[300px] hidden sm:block" />
-            <Skeleton className="h-9 w-9 rounded-full" />
+            <Skeleton className="h-6 w-20" />
             <Skeleton className="h-9 w-9 rounded-full" />
             <Skeleton className="h-9 w-9 rounded-full" />
           </div>
         </header>
-        <div className="flex flex-1">
-          <div className="hidden md:flex flex-col gap-2 p-2 border-r" style={{ width: 'var(--sidebar-width)'}}>
-            <div className="p-2">
-              <Skeleton className="h-8 w-32" />
-            </div>
-            <div className="flex flex-col gap-1 p-0">
-              {Array.from({ length: 10 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-2 p-2">
-                  <Skeleton className="h-8 w-8" />
-                  <Skeleton className="h-6 w-32" />
-                </div>
-              ))}
-            </div>
-          </div>
-          <main className="flex-1 p-4 md:p-6 lg:p-8">
-            <Skeleton className="h-8 w-48 mb-4" />
-            <Skeleton className="h-[400px] w-full" />
-          </main>
-        </div>
+        {/* Page Content Skeleton */}
+        <main className="flex-1 p-4 md:p-6 lg:p-8">
+          <Skeleton className="h-96 w-full" />
+        </main>
       </div>
-    );
+    </div>
+  );
 }
 
 
-export default function AppLayout({
+export default function AppLayoutClient({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   const { user, isUserLoading } = useUser();
-  const [isMounted, setIsMounted] = useState(false);
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    setIsMounted(true);
+    setIsClient(true);
   }, []);
 
   useEffect(() => {
-    if (isMounted && !isUserLoading && !user) {
+    if (isClient && !isUserLoading && !user) {
       redirect('/login');
     }
-  }, [user, isUserLoading, isMounted]);
+  }, [user, isUserLoading, isClient]);
 
-  if (!isMounted || isUserLoading || !user) {
+  if (!isClient || isUserLoading || !user) {
     return <AppLayoutSkeleton />;
   }
 
