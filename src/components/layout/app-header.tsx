@@ -16,8 +16,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { SidebarTrigger } from '../ui/sidebar';
 import { PageTitle } from './page-title';
 import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query } from 'firebase/firestore';
+import { collection, query, collectionGroup } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useMemo } from 'react';
 
 export function AppHeader() {
   const { user } = useUser();
@@ -31,7 +32,7 @@ export function AppHeader() {
 
   const { data: tokenTransactions, isLoading: isLoadingTokens } = useCollection(userTokenTransactionsQuery);
 
-  const totalUserTokens = useMemoFirebase(
+  const totalUserTokens = useMemo(
     () => tokenTransactions?.reduce((sum, transaction) => sum + (transaction.amount || 0), 0) || 0,
     [tokenTransactions]
   );
