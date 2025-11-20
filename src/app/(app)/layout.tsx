@@ -4,32 +4,30 @@ import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { AppHeader } from '@/components/layout/app-header';
 import { useUser } from '@/firebase';
-import { redirect } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 function AppLayoutSkeleton() {
   return (
-    <div className="flex min-h-screen w-full">
-      {/* Sidebar Skeleton */}
-      <div className="hidden w-64 flex-col border-r bg-background p-4 md:flex">
-        <div className="mb-8 flex items-center gap-2.5">
-          <Skeleton className="h-8 w-8" />
-          <Skeleton className="h-6 w-24" />
-        </div>
-        <div className="flex flex-col gap-2">
-          {Array.from({ length: 10 }).map((_, i) => (
-            <Skeleton key={i} className="h-8 w-full" />
-          ))}
-        </div>
-        <div className="mt-auto">
-          <Skeleton className="h-8 w-full" />
+    <SidebarProvider>
+      <div className="hidden md:block">
+        <div className="w-64 border-r bg-background p-4">
+          <div className="mb-8 flex items-center gap-2.5">
+            <Skeleton className="h-8 w-8" />
+            <Skeleton className="h-6 w-24" />
+          </div>
+          <div className="flex flex-col gap-2">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <Skeleton key={i} className="h-8 w-full" />
+            ))}
+          </div>
+          <div className="mt-auto pt-4">
+            <Skeleton className="h-8 w-full" />
+          </div>
         </div>
       </div>
-
-      {/* Main Content Skeleton */}
-      <div className="flex flex-1 flex-col">
-        {/* Header Skeleton */}
+      <SidebarInset>
         <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
           <Skeleton className="h-7 w-7 md:hidden" />
           <Skeleton className="h-6 w-32" />
@@ -39,15 +37,13 @@ function AppLayoutSkeleton() {
             <Skeleton className="h-9 w-9 rounded-full" />
           </div>
         </header>
-        {/* Page Content Skeleton */}
         <main className="flex-1 p-4 md:p-6 lg:p-8">
           <Skeleton className="h-96 w-full" />
         </main>
-      </div>
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }
-
 
 export default function AppLayoutClient({
   children,
@@ -55,19 +51,27 @@ export default function AppLayoutClient({
   children: React.ReactNode;
 }>) {
   const { user, isUserLoading } = useUser();
-  const [isClient, setIsClient] = useState(false);
+  const router = useRouter();
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    setIsClient(true);
+    setIsMounted(true);
   }, []);
 
   useEffect(() => {
-    if (isClient && !isUserLoading && !user) {
-      redirect('/login');
+    // ใช้ router.replace แทน redirect
+    if (isMounted && !isUserLoading && !user) {
+      router.replace('/login');
     }
-  }, [user, isUserLoading, isClient]);
+  }, [user, isUserLoading, isMounted, router]);
 
-  if (!isClient || isUserLoading || !user) {
+  // แสดง skeleton ขณะ loading
+  if (!isMounted || isUserLoading) {
+    return <AppLayoutSkeleton />;
+  }
+
+  // ถ้าไม่มี user ให้แสดง skeleton (ก่อนที่จะ redirect)
+  if (!user) {
     return <AppLayoutSkeleton />;
   }
 
@@ -76,7 +80,7 @@ export default function AppLayoutClient({
       <AppSidebar />
       <SidebarInset>
         <AppHeader />
-        <main className="flex-1 p-4 md:p-6 lg:p-8">
+        <main className="flex-1 p-4 md:p-6 lg:p-8" suppressHydrationWarning>
           {children}
         </main>
       </SidebarInset>

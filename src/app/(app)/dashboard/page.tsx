@@ -1,3 +1,5 @@
+'use client';
+
 import {
   Activity,
   ArrowUpRight,
@@ -26,8 +28,22 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { OverviewChart } from '@/components/dashboard/overview-chart';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, query } from 'firebase/firestore';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function DashboardPage() {
+  const firestore = useFirestore();
+
+  const usersCollectionQuery = useMemoFirebase(
+    () => (firestore ? query(collection(firestore, 'users')) : null),
+    [firestore]
+  );
+
+  const { data: users, isLoading: isLoadingUsers } = useCollection(
+    usersCollectionQuery
+  );
+  
   return (
     <div className="flex min-h-screen w-full flex-col">
       <main className="flex flex-1 flex-col gap-4 md:gap-8">
@@ -50,10 +66,21 @@ export default function DashboardPage() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">+2350</div>
-              <p className="text-xs text-muted-foreground">
-                +180.1% from last month
-              </p>
+              {isLoadingUsers ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-8 w-24" />
+                  <Skeleton className="h-4 w-32" />
+                </div>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">
+                    +{users?.length || 0}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Total registered users
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
           <Card>
