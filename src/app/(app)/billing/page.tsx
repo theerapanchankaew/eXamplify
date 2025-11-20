@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -32,17 +31,18 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
+import { useCollection, useDoc, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import {
   collection,
   addDoc,
   serverTimestamp,
   query,
   orderBy,
+  doc,
 } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { CreditCard, DollarSign, Wallet } from 'lucide-react';
+import { CreditCard, Wallet } from 'lucide-react';
 import { format } from 'date-fns';
 
 const topUpSchema = z.object({
@@ -62,6 +62,12 @@ export default function BillingPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
 
+  const userDocRef = useMemoFirebase(
+    () => (firestore && user ? doc(firestore, 'users', user.uid) : null),
+    [firestore, user]
+  );
+  const { data: userProfile, isLoading: isLoadingProfile } = useDoc(userDocRef);
+
   const transactionsQuery = useMemoFirebase(
     () =>
       firestore && user
@@ -73,9 +79,9 @@ export default function BillingPage() {
     [firestore, user]
   );
 
-  const { data: transactions, isLoading } = useCollection(transactionsQuery);
+  const { data: transactions, isLoading: isLoadingTransactions } = useCollection(transactionsQuery);
 
-  const currentBalance = useMemoFirebase(
+  const currentBalance = useMemo(
     () =>
       transactions?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0,
     [transactions]
@@ -108,7 +114,7 @@ export default function BillingPage() {
         amount: data.amount,
         transactionType: 'top-up',
         timestamp: serverTimestamp(),
-        description: `User top-up`,
+        description: `Admin top-up`,
       });
       toast({
         title: 'Success',
@@ -136,6 +142,8 @@ export default function BillingPage() {
         return 'outline';
     }
   };
+  
+  const isLoading = isLoadingTransactions || isLoadingProfile;
 
   return (
     <div className="w-full space-y-8">
@@ -166,47 +174,61 @@ export default function BillingPage() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Top-up Tokens</CardTitle>
-            <CardDescription>
-              Add more tokens to your wallet. 1 Token = $0.01 USD.
-            </CardDescription>
-          </CardHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleTopUp)}>
-              <CardContent className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="amount"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Amount</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                            <DollarSign className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                type="number"
-                                placeholder="1000"
-                                {...field}
-                                onChange={(e) => field.onChange(e.target.valueAsNumber)}
-                                className="pl-8"
-                            />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </CardContent>
-              <CardFooter>
-                <Button type="submit" disabled={form.formState.isSubmitting}>
-                  <CreditCard className="mr-2 h-4 w-4" /> Purchase Tokens
-                </Button>
-              </CardFooter>
-            </form>
-          </Form>
-        </Card>
+        { isLoading ? (
+            <Card className="lg:col-span-2">
+                <CardHeader>
+                    <Skeleton className="h-6 w-32" />
+                    <Skeleton className="h-4 w-48" />
+                </CardHeader>
+                <CardContent>
+                    <Skeleton className="h-10 w-full" />
+                </CardContent>
+                <CardFooter>
+                    <Skeleton className="h-10 w-40" />
+                </CardFooter>
+            </Card>
+        ) : userProfile?.role === 'Admin' && (
+            <Card className="lg:col-span-2">
+            <CardHeader>
+                <CardTitle>Top-up Tokens</CardTitle>
+                <CardDescription>
+                Add more tokens to your wallet. 1 Token = 0.01 THB.
+                </CardDescription>
+            </CardHeader>
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleTopUp)}>
+                <CardContent className="space-y-4">
+                    <FormField
+                    control={form.control}
+                    name="amount"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Amount</FormLabel>
+                        <FormControl>
+                            <div className="relative">
+                                <Input
+                                    type="number"
+                                    placeholder="1000"
+                                    {...field}
+                                    onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                                    className="pl-4"
+                                />
+                            </div>
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                </CardContent>
+                <CardFooter>
+                    <Button type="submit" disabled={form.formState.isSubmitting}>
+                    <CreditCard className="mr-2 h-4 w-4" /> Top-up Tokens
+                    </Button>
+                </CardFooter>
+                </form>
+            </Form>
+            </Card>
+        )}
       </div>
 
       <Card>
@@ -227,7 +249,7 @@ export default function BillingPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? (
+              {isLoadingTransactions ? (
                 Array.from({ length: 3 }).map((_, i) => (
                   <TableRow key={i}>
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
