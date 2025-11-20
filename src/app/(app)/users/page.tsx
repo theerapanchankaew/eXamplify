@@ -64,7 +64,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useCollection, useFirestore, useMemoFirebase, useAuth } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useAuth, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { collection, query, doc, deleteDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -136,31 +136,30 @@ export default function UsersPage() {
     const userDocRef = doc(firestore, 'users', selectedUser.id);
     const adminRoleRef = doc(firestore, 'roles_admin', selectedUser.id);
 
-    try {
-      // Only update the role
-      batch.update(userDocRef, { role: data.role });
+    const updateData = { role: data.role };
+    batch.update(userDocRef, updateData);
 
-      if (data.role === 'Admin') {
-        batch.set(adminRoleRef, { role: 'admin' });
-      } else if (selectedUser.role === 'Admin' && data.role !== 'Admin') {
-        batch.delete(adminRoleRef);
-      }
-
-      await batch.commit();
-
-      toast({
-        title: 'User Role Updated',
-        description: `User ${selectedUser.email}'s role has been updated.`,
-      });
-      setEditDialogOpen(false);
-      setSelectedUser(null);
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Update Failed',
-        description: error.message,
-      });
+    if (data.role === 'Admin') {
+      batch.set(adminRoleRef, { role: 'admin' });
+    } else if (selectedUser.role === 'Admin' && data.role !== 'Admin') {
+      batch.delete(adminRoleRef);
     }
+    
+    batch.commit().then(() => {
+        toast({
+            title: 'User Role Updated',
+            description: `User ${selectedUser.email}'s role has been updated.`,
+        });
+        setEditDialogOpen(false);
+        setSelectedUser(null);
+    }).catch(serverError => {
+        const permissionError = new FirestorePermissionError({
+            path: userDocRef.path,
+            operation: 'update',
+            requestResourceData: updateData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
   };
 
   const handleCreateUser = async (data: NewUserFormData) => {
