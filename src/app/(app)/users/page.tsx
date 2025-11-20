@@ -449,12 +449,12 @@ export default function UsersPage() {
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleUpdateUser)} className="space-y-4">
               <div className="space-y-2">
-                <p className="text-sm font-medium">Username</p>
-                <p className="text-sm text-muted-foreground p-2 border rounded-md bg-muted">{selectedUser?.username || 'N/A'}</p>
+                <FormLabel>Username</FormLabel>
+                <p className="text-sm text-muted-foreground p-2 border rounded-md bg-muted/50 h-10 flex items-center">{selectedUser?.username || 'N/A'}</p>
               </div>
                <div className="space-y-2">
-                <p className="text-sm font-medium">Email</p>
-                <p className="text-sm text-muted-foreground p-2 border rounded-md bg-muted">{selectedUser?.email}</p>
+                <FormLabel>Email</FormLabel>
+                <p className="text-sm text-muted-foreground p-2 border rounded-md bg-muted/50 h-10 flex items-center">{selectedUser?.email}</p>
               </div>
               <FormField
                 control={form.control}
