@@ -169,7 +169,7 @@ service cloud.firestore {
     match /courses/{courseId}/modules/{moduleId} {
       allow get, list: if true; // TODO: Restrict reads to approved enrolled students
       allow create: if isCourseInstructor(courseId) && request.resource.data.courseId == courseId;
-      allow update, delete: if isCourseInstructor(courseId);
+      allow update, delete: if isCourseInstructor(courseId) || isAdmin();
     }
 
     /**
@@ -181,8 +181,8 @@ service cloud.firestore {
      */
     match /courses/{courseId}/modules/{moduleId}/chapters/{chapterId} {
       allow get, list: if true; // TODO: Restrict reads to approved enrolled students
-      allow create: if isCourseInstructor(courseId) && request.resource.data.moduleId == moduleId;
-      allow update, delete: if isCourseInstructor(courseId);
+      allow create: if (isCourseInstructor(courseId) || isAdmin()) && request.resource.data.moduleId == moduleId;
+      allow update, delete: if isCourseInstructor(courseId) || isAdmin();
     }
 
     /**
@@ -194,8 +194,8 @@ service cloud.firestore {
      */
     match /courses/{courseId}/modules/{moduleId}/chapters/{chapterId}/lessons/{lessonId} {
       allow get, list: if true; // TODO: Restrict reads to approved enrolled students
-      allow create: if isCourseInstructor(courseId) && request.resource.data.chapterId == chapterId;
-      allow update, delete: if isCourseInstructor(courseId);
+      allow create: if (isCourseInstructor(courseId) || isAdmin()) && request.resource.data.chapterId == chapterId;
+      allow update, delete: if isCourseInstructor(courseId) || isAdmin();
     }
 
     /**
@@ -207,8 +207,8 @@ service cloud.firestore {
      */
     match /courses/{courseId}/exams/{examId} {
       allow get, list: if true; // TODO: Restrict reads to approved enrolled students
-      allow create: if isCourseInstructor(courseId) && request.resource.data.courseId == courseId;
-      allow update, delete: if isCourseInstructor(courseId);
+      allow create: if (isCourseInstructor(courseId) || isAdmin()) && request.resource.data.courseId == courseId;
+      allow update, delete: if isCourseInstructor(courseId) || isAdmin();
     }
 
     /**
@@ -220,8 +220,8 @@ service cloud.firestore {
      */
     match /courses/{courseId}/exams/{examId}/questions/{questionId} {
       allow get, list: if true; // TODO: Restrict reads to approved enrolled students
-      allow create: if isCourseInstructor(courseId) && request.resource.data.examId == examId;
-      allow update, delete: if isCourseInstructor(courseId);
+      allow create: if (isCourseInstructor(courseId) || isAdmin()) && request.resource.data.examId == examId;
+      allow update, delete: if isCourseInstructor(courseId) || isAdmin();
     }
     
     // ------------------------------------------------------------------------

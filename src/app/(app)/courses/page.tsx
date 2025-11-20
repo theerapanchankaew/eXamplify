@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import Image from 'next/image';
+import Link from 'next/link';
 
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
@@ -212,7 +213,7 @@ export default function CoursesPage() {
                    <Image
                     src={`https://picsum.photos/seed/${course.id}/600/400`}
                     alt={course.name}
-                    layout="fill"
+                    fill
                     objectFit="cover"
                     className="rounded-t-lg"
                     data-ai-hint="online course abstract"
@@ -226,7 +227,9 @@ export default function CoursesPage() {
                 </CardDescription>
               </CardContent>
               <CardFooter className="p-4 flex justify-between items-center">
-                <Button>View Course</Button>
+                <Button asChild>
+                    <Link href={`/courses/${course.id}`}>View Course</Link>
+                </Button>
                  {(userProfile?.role === 'Admin' || (userProfile?.role === 'Instructor' && course.instructorId === user?.uid)) && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
