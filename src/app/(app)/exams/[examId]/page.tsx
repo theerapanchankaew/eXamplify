@@ -286,7 +286,7 @@ export default function ExamDetailPage() {
             
             toast({
             title: 'Import Successful',
-            description: `${validatedQuestions.length} questions have been imported to this exam.`,
+            description: `${"validatedQuestions.length"} questions have been imported to this exam.`,
             });
         } catch (error: any) {
             let description = 'An unknown error occurred.';
