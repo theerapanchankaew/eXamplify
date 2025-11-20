@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -14,6 +14,7 @@ import {
   updateDoc,
   deleteDoc,
   serverTimestamp,
+  writeBatch,
 } from 'firebase/firestore';
 import Link from 'next/link';
 
@@ -78,12 +79,36 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, MoreHorizontal, PlusCircle } from 'lucide-react';
+import { ArrowLeft, FileJson, Import, MoreHorizontal, PlusCircle } from 'lucide-react';
+import { CodeBlock } from '@/components/ui/code-block';
 
 const questionSchema = z.object({
   text: z.string().min(1, 'Question text is required.'),
   type: z.enum(['Multiple Choice', 'True/False', 'Short Answer']),
 });
+
+// Schema for validating imported questions
+const importedQuestionSchema = z.array(
+  z.object({
+    text: z.string().min(1),
+    type: z.enum(['Multiple Choice', 'True/False', 'Short Answer']),
+  })
+);
+
+const exampleJson = `[
+  {
+    "text": "What is the capital of France?",
+    "type": "Multiple Choice"
+  },
+  {
+    "text": "The Earth is flat.",
+    "type": "True/False"
+  },
+  {
+    "text": "Explain the concept of photosynthesis in one sentence.",
+    "type": "Short Answer"
+  }
+]`;
 
 type QuestionFormData = z.infer<typeof questionSchema>;
 
@@ -95,10 +120,12 @@ export default function ExamDetailPage() {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Dialog states
   const [isQuestionDialogOpen, setQuestionDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [isExampleJsonDialogOpen, setExampleJsonDialogOpen] = useState(false);
   const [selectedQuestion, setSelectedQuestion] = useState<any>(null);
 
   // User Profile for permissions
@@ -160,6 +187,65 @@ export default function ExamDetailPage() {
     setDeleteDialogOpen(true);
   };
 
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!firestore || !courseId || !examId) return;
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const content = e.target?.result;
+        if (typeof content !== 'string') throw new Error('Failed to read file content.');
+        
+        const parsedJson = JSON.parse(content);
+        const validatedQuestions = importedQuestionSchema.parse(parsedJson);
+
+        const batch = writeBatch(firestore);
+        const questionsColRef = collection(firestore, 'courses', courseId as string, 'exams', examId as string, 'questions');
+
+        validatedQuestions.forEach(q => {
+          const newQuestionRef = doc(questionsColRef);
+          batch.set(newQuestionRef, {
+            ...q,
+            examId: examId,
+            createdAt: serverTimestamp(),
+          });
+        });
+
+        await batch.commit();
+        toast({
+          title: 'Import Successful',
+          description: `${validatedQuestions.length} questions have been imported.`,
+        });
+
+      } catch (error: any) {
+        let description = 'An unknown error occurred.';
+        if (error instanceof z.ZodError) {
+          description = 'JSON format is invalid. Please check the file structure.';
+        } else if (error instanceof SyntaxError) {
+          description = 'Invalid JSON file. Please ensure the file is correctly formatted.';
+        } else {
+          description = error.message;
+        }
+        toast({
+          variant: 'destructive',
+          title: 'Import Failed',
+          description: description,
+        });
+      } finally {
+        // Reset file input
+        if(fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsText(file);
+  };
+
+
   const handleQuestionSubmit = async (data: QuestionFormData) => {
     if (!firestore || !courseId || !examId) return;
     const questionsColRef = collection(firestore, 'courses', courseId as string, 'exams', examId as string, 'questions');
@@ -194,6 +280,11 @@ export default function ExamDetailPage() {
         setDeleteDialogOpen(false);
         setSelectedQuestion(null);
     }
+  };
+  
+  const copyExampleJson = () => {
+    navigator.clipboard.writeText(exampleJson);
+    toast({ title: 'Copied!', description: 'Example JSON copied to clipboard.' });
   };
 
   if (isLoading) {
@@ -240,10 +331,27 @@ export default function ExamDetailPage() {
             <CardDescription className="mt-2 text-base">{exam.description}</CardDescription>
           </div>
           {isOwner && (
-            <Button onClick={handleAddQuestion}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Add Question
-            </Button>
+             <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={() => setExampleJsonDialogOpen(true)}>
+                    <FileJson className="mr-2 h-4 w-4" />
+                    JSON Example
+                </Button>
+                 <Button variant="secondary" onClick={handleImportClick}>
+                    <Import className="mr-2 h-4 w-4" />
+                    Import Questions
+                </Button>
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileImport}
+                    accept=".json"
+                    className="hidden"
+                />
+                <Button onClick={handleAddQuestion}>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Add Question
+                </Button>
+            </div>
           )}
         </CardHeader>
         <CardContent>
@@ -294,7 +402,7 @@ export default function ExamDetailPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={3} className="text-center h-24">
-                    No questions found.
+                    No questions found. Get started by adding a question or importing from JSON.
                   </TableCell>
                 </TableRow>
               )}
@@ -377,6 +485,23 @@ export default function ExamDetailPage() {
             </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
+
+      {/* Example JSON Dialog */}
+      <Dialog open={isExampleJsonDialogOpen} onOpenChange={setExampleJsonDialogOpen}>
+        <DialogContent className="max-w-2xl">
+            <DialogHeader>
+                <DialogTitle>Example JSON Structure</DialogTitle>
+                <DialogDescription>
+                    Your JSON file should be an array of question objects with 'text' and 'type' keys.
+                </DialogDescription>
+            </DialogHeader>
+            <CodeBlock code={exampleJson} />
+            <DialogFooter>
+                <Button type="button" variant="secondary" onClick={copyExampleJson}>Copy Code</Button>
+                <Button type="button" onClick={() => setExampleJsonDialogOpen(false)}>Close</Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
