@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -14,19 +14,28 @@ import {
   serverTimestamp,
   collectionGroup,
   writeBatch,
+  getDocs,
 } from 'firebase/firestore';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import {
   Dialog,
   DialogContent,
@@ -72,9 +81,8 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Import, MoreVertical, PlusCircle } from 'lucide-react';
+import { Import, MoreHorizontal, PlusCircle } from 'lucide-react';
 import { useDoc } from '@/firebase/firestore/use-doc';
-import { useRouter } from 'next/navigation';
 
 const examSchema = z.object({
   name: z.string().min(1, 'Exam name is required.'),
@@ -100,6 +108,14 @@ const importedExamSchema = z.object({
 
 type ExamFormData = z.infer<typeof examSchema>;
 
+interface ExamWithQuestionCount {
+  id: string;
+  name: string;
+  description: string;
+  courseId: string;
+  questionCount: number;
+}
+
 export default function ExamsPage() {
   const { user } = useUser();
   const firestore = useFirestore();
@@ -107,18 +123,14 @@ export default function ExamsPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [examsWithCounts, setExamsWithCounts] = useState<ExamWithQuestionCount[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const userDocRef = useMemoFirebase(
     () => (firestore && user ? doc(firestore, 'users', user.uid) : null),
     [firestore, user]
   );
   const { data: userProfile, isLoading: isLoadingProfile } = useDoc(userDocRef);
-
-  const examsQuery = useMemoFirebase(
-    () => (firestore ? query(collectionGroup(firestore, 'exams')) : null),
-    [firestore]
-  );
-  const { data: exams, isLoading: isLoadingExams } = useCollection(examsQuery);
 
   const coursesQuery = useMemoFirebase(
     () => (firestore ? query(collection(firestore, 'courses')) : null),
@@ -135,6 +147,35 @@ export default function ExamsPage() {
     if (userProfile?.role === 'Admin') return courses;
     return courses.filter(course => course.instructorId === user.uid);
   }, [courses, user, userProfile]);
+
+  useEffect(() => {
+    if (!firestore) return;
+    setIsLoading(true);
+
+    const fetchExamsAndCounts = async () => {
+        const examsGroupQuery = query(collectionGroup(firestore, 'exams'));
+        const querySnapshot = await getDocs(examsGroupQuery);
+        
+        const examsData = await Promise.all(
+            querySnapshot.docs.map(async (examDoc) => {
+                const questionsColRef = collection(examDoc.ref, 'questions');
+                const questionsSnapshot = await getDocs(questionsColRef);
+                return {
+                    ...examDoc.data(),
+                    id: examDoc.id,
+                    courseId: examDoc.data().courseId,
+                    questionCount: questionsSnapshot.size,
+                } as ExamWithQuestionCount;
+            })
+        );
+        setExamsWithCounts(examsData);
+        setIsLoading(false);
+    };
+
+    fetchExamsAndCounts();
+
+  }, [firestore]);
+
 
   const form = useForm<ExamFormData>({
     resolver: zodResolver(examSchema),
@@ -169,7 +210,7 @@ export default function ExamsPage() {
       if (selectedExam) {
         // Update existing exam
         const examDocRef = doc(firestore, 'courses', selectedExam.courseId, 'exams', selectedExam.id);
-        await updateDoc(examDocRef, data);
+        await updateDoc(examDocRef, { name: data.name, description: data.description });
         toast({ title: 'Success', description: 'Exam updated successfully.' });
       } else {
         // Create new exam
@@ -196,6 +237,7 @@ export default function ExamsPage() {
     try {
       const examDocRef = doc(firestore, 'courses', selectedExam.courseId, 'exams', selectedExam.id);
       await deleteDoc(examDocRef);
+      // This will trigger a re-fetch via useEffect, no need to manually update state
       toast({
         title: 'Success',
         description: 'Exam deleted successfully.',
@@ -300,6 +342,7 @@ export default function ExamsPage() {
   };
   
   const canManageExams = userProfile?.role === 'Admin' || userProfile?.role === 'Instructor';
+  const pageIsLoading = isLoading || isLoadingProfile || isLoadingCourses;
 
   return (
     <div className="w-full">
@@ -307,7 +350,7 @@ export default function ExamsPage() {
         <div>
           <h1 className="text-3xl font-bold">Exams</h1>
           <p className="text-muted-foreground">
-            Design and deploy question-based assessments.
+            Browse, create, and manage your question-based assessments.
           </p>
         </div>
         {canManageExams && (
@@ -331,90 +374,90 @@ export default function ExamsPage() {
         )}
       </div>
 
-      {isLoadingExams || isLoadingProfile || isLoadingCourses ? (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-             <Card key={i}>
-                <CardHeader>
-                    <Skeleton className="h-6 w-3/4 mb-2" />
-                    <Skeleton className="h-4 w-1/2" />
-                </CardHeader>
-                <CardContent>
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-5/6 mt-1" />
-                </CardContent>
-                <CardFooter>
-                    <Skeleton className="h-10 w-24" />
-                </CardFooter>
-            </Card>
-          ))}
-        </div>
-      ) : exams && exams.length > 0 ? (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {exams.map((exam) => {
-            const canManageThisExam = userProfile?.role === 'Admin' || userOwnedCourses.some(c => c.id === exam.courseId);
-            return (
-                <Card key={exam.id} className="flex flex-col">
-                    <CardHeader>
-                        <CardTitle className="text-lg line-clamp-2">{exam.name}</CardTitle>
-                        <CardDescription>
-                            In course: {courses?.find(c => c.id === exam.courseId)?.name || 'N/A'}
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex-1">
-                        <p className="line-clamp-3 text-sm">{exam.description}</p>
-                    </CardContent>
-                    <CardFooter className="p-4 flex justify-between items-center">
-                        <Button asChild>
-                            <Link href={`/exams/${exam.id}?courseId=${exam.courseId}`}>View Exam</Link>
-                        </Button>
-                        {canManageThisExam && (
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                                <MoreVertical className="h-5 w-5" />
-                            </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => handleEditExam(exam)}>
-                                Edit Exam
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                                onClick={() => handleDeleteExam(exam)}
-                                className="text-red-600"
-                            >
-                                Delete Exam
-                            </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                        )}
-                    </CardFooter>
-                </Card>
-            )
-        })}
-        </div>
-      ) : (
-        <div className="text-center py-16 border-2 border-dashed rounded-lg">
-            <h2 className="text-xl font-semibold">No Exams Found</h2>
-            <p className="text-muted-foreground mt-2">
-              Get started by creating a new exam or importing from JSON.
-            </p>
-            {canManageExams && (
-              <div className="flex justify-center gap-4 mt-4">
-                 <Button variant="outline" onClick={handleImportClick}>
-                    <Import className="mr-2 h-4 w-4" />
-                    Import Exam
-                </Button>
-                 <Button onClick={handleAddExam}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Create Your First Exam
-                </Button>
-              </div>
-            )}
-        </div>
-      )}
+    <Card>
+        <CardHeader>
+            <CardTitle>Exam Bank</CardTitle>
+            <CardDescription>A list of all exams in the system.</CardDescription>
+        </CardHeader>
+        <CardContent>
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead className="w-[30%]">Exam Name</TableHead>
+                        <TableHead>Course</TableHead>
+                        <TableHead>Questions</TableHead>
+                        <TableHead className="hidden md:table-cell w-[30%]">Description</TableHead>
+                        <TableHead><span className="sr-only">Actions</span></TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                     {pageIsLoading ? (
+                        Array.from({ length: 5 }).map((_, i) => (
+                        <TableRow key={i}>
+                            <TableCell><Skeleton className="h-5 w-48" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-12" /></TableCell>
+                            <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-full" /></TableCell>
+                            <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
+                        </TableRow>
+                        ))
+                    ) : examsWithCounts && examsWithCounts.length > 0 ? (
+                        examsWithCounts.map((exam) => {
+                            const canManageThisExam = userProfile?.role === 'Admin' || userOwnedCourses.some(c => c.id === exam.courseId);
+                            const courseName = courses?.find(c => c.id === exam.courseId)?.name || 'N/A';
+                            return (
+                                <TableRow key={exam.id}>
+                                    <TableCell className="font-medium">
+                                        <Link href={`/exams/${exam.id}?courseId=${exam.courseId}`} className="hover:underline">
+                                            {exam.name}
+                                        </Link>
+                                    </TableCell>
+                                    <TableCell>{courseName}</TableCell>
+                                    <TableCell>{exam.questionCount}</TableCell>
+                                    <TableCell className="hidden md:table-cell text-muted-foreground truncate">{exam.description}</TableCell>
+                                    <TableCell className="text-right">
+                                        <div className="flex items-center justify-end gap-2">
+                                            <Button asChild variant="outline" size="sm">
+                                                <Link href={`/exams/${exam.id}?courseId=${exam.courseId}`}>View</Link>
+                                            </Button>
+                                            {canManageThisExam && (
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                <DropdownMenuItem onClick={() => handleEditExam(exam)}>
+                                                    Edit Exam
+                                                </DropdownMenuItem>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem
+                                                    onClick={() => handleDeleteExam(exam)}
+                                                    className="text-red-600"
+                                                >
+                                                    Delete Exam
+                                                </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                            )}
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            )
+                        })
+                    ) : (
+                         <TableRow>
+                            <TableCell colSpan={5} className="h-24 text-center">
+                                No exams found.
+                            </TableCell>
+                        </TableRow>
+                    )}
+                </TableBody>
+            </Table>
+        </CardContent>
+    </Card>
 
       {/* Exam Creation/Editing Dialog */}
       <Dialog open={isExamDialogOpen} onOpenChange={setExamDialogOpen}>
