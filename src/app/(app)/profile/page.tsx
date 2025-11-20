@@ -20,13 +20,29 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Alert,
+  AlertTitle,
+  AlertDescription,
+} from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { doc, updateDoc } from 'firebase/firestore';
+import { updateProfile } from "firebase/auth";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Badge } from '@/components/ui/badge';
+import { Camera } from 'lucide-react';
 
 const profileSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters long.'),
@@ -36,8 +52,17 @@ type ProfileFormData = z.infer<typeof profileSchema>;
 
 export default function ProfilePage() {
   const { user, isUserLoading } = useUser();
+  const auth = useAuth();
   const firestore = useFirestore();
   const { toast } = useToast();
+
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const [isWebcamDialogOpen, setWebcamDialogOpen] = useState(false);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+
 
   const userDocRef = useMemoFirebase(
     () => (firestore && user ? doc(firestore, 'users', user.uid) : null),
@@ -74,6 +99,10 @@ export default function ProfilePage() {
       const userDocRef = doc(firestore, 'users', user.uid);
       await updateDoc(userDocRef, { username: data.username });
 
+      if (auth.currentUser) {
+        await updateProfile(auth.currentUser, { displayName: data.username });
+      }
+
       toast({
         title: 'Profile Updated',
         description: 'Your username has been updated successfully.',
@@ -86,6 +115,72 @@ export default function ProfilePage() {
       });
     }
   };
+
+  const handleDialogOpenChange = async (open: boolean) => {
+    setWebcamDialogOpen(open);
+    if (open) {
+      setCapturedImage(null);
+      try {
+        const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        setStream(mediaStream);
+        setHasCameraPermission(true);
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+        }
+      } catch (error) {
+        console.error('Error accessing camera:', error);
+        setHasCameraPermission(false);
+        toast({
+          variant: 'destructive',
+          title: 'Camera Access Denied',
+          description: 'Please enable camera permissions in your browser settings.',
+        });
+      }
+    } else {
+      // Stop the stream when the dialog is closed
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        setStream(null);
+      }
+    }
+  };
+
+  const handleCapture = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const context = canvas.getContext('2d');
+      context?.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+      const dataUrl = canvas.toDataURL('image/png');
+      setCapturedImage(dataUrl);
+    }
+  };
+
+  const handleSavePicture = async () => {
+    if (!capturedImage || !auth.currentUser) return;
+
+    try {
+      await updateProfile(auth.currentUser, { photoURL: capturedImage });
+      
+      const userDocRef = doc(firestore, 'users', auth.currentUser.uid);
+      await updateDoc(userDocRef, { photoURL: capturedImage });
+
+      toast({
+        title: 'Success',
+        description: 'Your profile picture has been updated.'
+      });
+      handleDialogOpenChange(false);
+    } catch (error: any) {
+       toast({
+        variant: 'destructive',
+        title: 'Update Failed',
+        description: error.message,
+      });
+    }
+  };
+
 
   if (isUserLoading || isLoadingProfile) {
     return (
@@ -131,17 +226,65 @@ export default function ProfilePage() {
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-4 mb-6">
-            <Avatar className="h-24 w-24" data-ai-hint="person face">
-              <AvatarImage
-                src={user.photoURL || `https://picsum.photos/seed/${user.uid}/100/100`}
-                alt="User Avatar"
-              />
-              <AvatarFallback>
-                {user.email ? user.email.charAt(0).toUpperCase() : 'U'}
-              </AvatarFallback>
-            </Avatar>
+            <Dialog open={isWebcamDialogOpen} onOpenChange={handleDialogOpenChange}>
+              <DialogTrigger asChild>
+                <div className="relative group cursor-pointer">
+                  <Avatar className="h-24 w-24" data-ai-hint="person face">
+                    <AvatarImage
+                      src={user.photoURL || `https://picsum.photos/seed/${user.uid}/100/100`}
+                      alt="User Avatar"
+                    />
+                    <AvatarFallback>
+                      {user.email ? user.email.charAt(0).toUpperCase() : 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Camera className="h-8 w-8 text-white" />
+                  </div>
+                </div>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Update Profile Picture</DialogTitle>
+                  <DialogDescription>
+                    Capture a new photo using your webcam for identity verification.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  {hasCameraPermission === false ? (
+                      <Alert variant="destructive">
+                        <AlertTitle>Camera Access Required</AlertTitle>
+                        <AlertDescription>
+                          Please allow camera access in your browser to use this feature.
+                        </AlertDescription>
+                      </Alert>
+                  ) : capturedImage ? (
+                    <div className="flex flex-col items-center space-y-4">
+                      <img src={capturedImage} alt="Captured" className="rounded-md" />
+                    </div>
+                  ) : (
+                    <video ref={videoRef} className="w-full aspect-video rounded-md bg-muted" autoPlay muted playsInline />
+                  )}
+                  <canvas ref={canvasRef} className="hidden" />
+                </div>
+                <DialogFooter>
+                  {capturedImage ? (
+                    <>
+                      <Button variant="outline" onClick={() => setCapturedImage(null)}>Retake</Button>
+                      <Button onClick={handleSavePicture}>Save Picture</Button>
+                    </>
+                  ) : (
+                    <Button onClick={handleCapture} disabled={hasCameraPermission === false}>
+                      <Camera className="mr-2 h-4 w-4" />
+                      Capture
+                    </Button>
+                  )}
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
             <div className="space-y-1">
-                <p className="text-2xl font-semibold">{userProfile?.username || 'User'}</p>
+                <p className="text-2xl font-semibold">{userProfile?.username || user.displayName || 'User'}</p>
                 <p className="text-muted-foreground">{user.email}</p>
                 {userProfile?.role && <Badge>{userProfile.role}</Badge>}
             </div>
