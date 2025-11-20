@@ -5,4 +5,5 @@ export type NavItem = {
   href: string;
   icon: LucideIcon;
   subItems?: NavItem[];
+  roles?: ('Admin' | 'Instructor' | 'Student')[];
 };

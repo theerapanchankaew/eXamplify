@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-
 import {
   Sidebar,
   SidebarHeader,
@@ -11,7 +10,10 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from '@/components/ui/sidebar';
-import { menuItems, settingsItem } from '@/lib/menu-items';
+import { getMenuItems, settingsItem } from '@/lib/menu-items';
+import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
+import { useDoc } from '@/firebase/firestore/use-doc';
+import { doc } from 'firebase/firestore';
 
 function Logo() {
   return (
@@ -64,6 +66,16 @@ function Logo() {
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const { user } = useUser();
+  const firestore = useFirestore();
+
+  const userDocRef = useMemoFirebase(
+    () => (firestore && user ? doc(firestore, 'users', user.uid) : null),
+    [firestore, user]
+  );
+  const { data: userProfile } = useDoc(userDocRef);
+
+  const menuItems = getMenuItems(userProfile?.role);
 
   return (
     <Sidebar collapsible="icon">
