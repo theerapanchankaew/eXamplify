@@ -22,6 +22,7 @@ export function OverviewChart() {
   const [data, setData] = useState<any[]>([]);
 
   useEffect(() => {
+    // Generate data on the client side after hydration
     setData(generateData());
   }, []);
 

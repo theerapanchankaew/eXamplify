@@ -5,7 +5,7 @@ import { AppSidebar } from '@/components/layout/app-sidebar';
 import { AppHeader } from '@/components/layout/app-header';
 import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 function AppLayoutSkeleton() {
@@ -54,19 +54,14 @@ export default function AppLayoutClient({
 }>) {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
-  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  useEffect(() => {
-    if (isClient && !isUserLoading && !user) {
+    if (!isUserLoading && !user) {
       router.replace('/login');
     }
-  }, [user, isUserLoading, isClient, router]);
+  }, [user, isUserLoading, router]);
 
-  if (!isClient || isUserLoading || !user) {
+  if (isUserLoading || !user) {
     return <AppLayoutSkeleton />;
   }
 
