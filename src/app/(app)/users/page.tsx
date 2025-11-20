@@ -65,7 +65,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, doc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 
@@ -111,9 +111,23 @@ export default function UsersPage() {
 
   const handleUpdateUser = async (data: UserFormData) => {
     if (!firestore || !selectedUser) return;
+    
     const userDocRef = doc(firestore, 'users', selectedUser.id);
+    const adminRoleRef = doc(firestore, 'roles_admin', selectedUser.id);
+
     try {
+      // Update the main user document
       await updateDoc(userDocRef, data);
+
+      // Handle the admin role based on the new role
+      if (data.role === 'Admin') {
+        // If role is changed to Admin, ensure the role document exists
+        await setDoc(adminRoleRef, { role: 'admin' });
+      } else if (selectedUser.role === 'Admin' && data.role !== 'Admin') {
+        // If role is changed from Admin to something else, delete the role document
+        await deleteDoc(adminRoleRef);
+      }
+
       toast({
         title: 'User Updated',
         description: `User ${selectedUser.email} has been updated.`,
