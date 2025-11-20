@@ -65,7 +65,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useCollection, useFirestore, useMemoFirebase, useAuth } from '@/firebase';
-import { collection, query, doc, updateDoc, deleteDoc, setDoc, writeBatch } from 'firebase/firestore';
+import { collection, query, doc, deleteDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -505,5 +505,3 @@ export default function UsersPage() {
     </>
   );
 }
-
-    
