@@ -64,12 +64,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useAuth } from '@/firebase';
 import { collection, query, doc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { getAuth, createUserWithEmailAndPassword, deleteUser } from 'firebase/auth';
-
 
 const userSchema = z.object({
   username: z.string().min(1, 'Username is required'),
@@ -80,6 +79,7 @@ const newUserSchema = z.object({
     email: z.string().email(),
     password: z.string().min(6, 'Password must be at least 6 characters'),
     role: z.enum(['Admin', 'Instructor', 'Student']),
+    username: z.string().min(1, 'Username is required'),
 });
 
 type UserFormData = z.infer<typeof userSchema>;
@@ -88,7 +88,7 @@ type NewUserFormData = z.infer<typeof newUserSchema>;
 
 export default function UsersPage() {
   const firestore = useFirestore();
-  const auth = getAuth();
+  const auth = useAuth();
   const { toast } = useToast();
 
   const usersCollectionQuery = useMemoFirebase(
@@ -113,6 +113,7 @@ export default function UsersPage() {
           email: '',
           password: '',
           role: 'Student',
+          username: '',
       },
   });
 
@@ -161,60 +162,54 @@ export default function UsersPage() {
   };
 
   const handleCreateUser = async (data: NewUserFormData) => {
-      if (!firestore) return;
-      
-      // This is a temporary solution for creating users. 
-      // In a real app, you'd use a backend function to create users.
-      try {
-          // Temporarily sign out the admin to create a new user
-          const adminUser = auth.currentUser;
-          await auth.signOut();
+    if (!firestore || !auth) return;
 
-          const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-          const newUser = userCredential.user;
+    try {
+        // This is a workaround for client-side user creation.
+        // A backend function is recommended for production environments
+        // to avoid admin re-authentication issues.
+        const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+        const newUser = userCredential.user;
 
-          const userDocRef = doc(firestore, 'users', newUser.uid);
-          await setDoc(userDocRef, {
-              id: newUser.uid,
-              email: data.email,
-              role: data.role,
-              username: data.email.split('@')[0],
-          });
+        const userDocRef = doc(firestore, 'users', newUser.uid);
+        await setDoc(userDocRef, {
+            id: newUser.uid,
+            email: data.email,
+            role: data.role,
+            username: data.username,
+        });
 
-          if (data.role === 'Admin') {
-              const adminRoleRef = doc(firestore, 'roles_admin', newUser.uid);
-              await setDoc(adminRoleRef, { role: 'admin' });
-          }
+        if (data.role === 'Admin') {
+            const adminRoleRef = doc(firestore, 'roles_admin', newUser.uid);
+            await setDoc(adminRoleRef, { role: 'admin' });
+        }
 
-          toast({
-              title: 'User Created',
-              description: `User ${data.email} has been created.`,
-          });
-          
-          // Sign back in as admin - this is simplistic and has issues
-          // A proper solution requires a backend.
-          if(adminUser) {
-            // This part is problematic as it requires credentials.
-            // For now, we'll just log that the admin needs to log back in.
-            console.log("Admin needs to log back in manually.");
-          }
+        toast({
+            title: 'User Created',
+            description: `User ${data.email} has been created successfully.`,
+        });
 
-          setAddUserDialogOpen(false);
-          newUserForm.reset();
+        setAddUserDialogOpen(false);
+        newUserForm.reset();
 
-      } catch (error: any) {
-          toast({
-              variant: 'destructive',
-              title: 'Create User Failed',
-              description: error.message,
-          });
-      }
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Create User Failed',
+            description: error.message,
+        });
+    }
   };
+
 
   const handleDeleteUser = async () => {
     if (!firestore || !selectedUser) return;
     const userDocRef = doc(firestore, 'users', selectedUser.id);
     try {
+      // NOTE: Deleting a user from Authentication is a privileged operation
+      // and typically requires a backend function (e.g., Cloud Functions)
+      // to be called by an admin. This implementation only deletes the
+      // Firestore document.
       await deleteDoc(userDocRef);
 
       if (selectedUser.role === 'Admin') {
@@ -223,8 +218,8 @@ export default function UsersPage() {
       }
       
       toast({
-        title: 'User Deleted',
-        description: `User ${selectedUser.email} has been deleted from Firestore. Note: This does not remove the user from Firebase Authentication.`,
+        title: 'User Document Deleted',
+        description: `User ${selectedUser.email}'s data has been deleted from Firestore. The Auth record still exists.`,
       });
     } catch (error: any) {
       toast({
@@ -316,7 +311,7 @@ export default function UsersPage() {
                     </TableCell>
                     <TableCell>{user.role}</TableCell>
                     <TableCell className="hidden md:table-cell">
-                      <Badge variant={'default'}>Active</Badge>
+                      <Badge variant={'outline'}>Active</Badge>
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -333,7 +328,7 @@ export default function UsersPage() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
                           <DropdownMenuItem onClick={() => handleEditClick(user)}>Edit</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleDeleteClick(user)}>Delete</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleDeleteClick(user)} className="text-red-600">Delete</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -356,11 +351,24 @@ export default function UsersPage() {
               <DialogHeader>
                   <DialogTitle>Add New User</DialogTitle>
                   <DialogDescription>
-                      Create a new user account. An email and a temporary password are required.
+                      Create a new user account.
                   </DialogDescription>
               </DialogHeader>
               <Form {...newUserForm}>
                   <form onSubmit={newUserForm.handleSubmit(handleCreateUser)} className="space-y-4">
+                      <FormField
+                          control={newUserForm.control}
+                          name="username"
+                          render={({ field }) => (
+                              <FormItem>
+                                  <FormLabel>Username</FormLabel>
+                                  <FormControl>
+                                      <Input placeholder="john.doe" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                              </FormItem>
+                          )}
+                      />
                       <FormField
                           control={newUserForm.control}
                           name="email"
@@ -479,12 +487,12 @@ export default function UsersPage() {
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete the user
-              account and remove their data from our servers.
+              document from Firestore. To fully delete the user, you must also remove them from Firebase Authentication.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteUser}>Continue</AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteUser} className={buttonVariants({ variant: "destructive" })}>Continue</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

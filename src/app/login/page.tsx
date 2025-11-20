@@ -54,6 +54,15 @@ export default function LoginPage() {
 
   const handleLogin = async (values: z.infer<typeof formSchema>) => {
     setIsLoading(true);
+    if (!auth) {
+        toast({
+            variant: 'destructive',
+            title: 'Login Failed',
+            description: 'Firebase Auth is not available.',
+        });
+        setIsLoading(false);
+        return;
+    }
     try {
       await signInWithEmailAndPassword(auth, values.email, values.password);
       toast({ title: 'Success', description: 'Logged in successfully.' });
@@ -70,6 +79,15 @@ export default function LoginPage() {
 
   const handleSignUp = async (values: z.infer<typeof formSchema>) => {
     setIsLoading(true);
+    if (!auth || !firestore) {
+        toast({
+            variant: 'destructive',
+            title: 'Sign Up Failed',
+            description: 'Firebase services are not available.',
+        });
+        setIsLoading(false);
+        return;
+    }
     try {
       const userCredential = await createUserWithEmailAndPassword(
         auth,

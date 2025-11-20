@@ -131,8 +131,8 @@ service cloud.firestore {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isSignedIn();
       allow create: if isOwner(userId) && hasValidUserCreateData(userId);
-      allow update: if (isOwner(userId) || isAdmin());// && getAfter() != null && hasValidUserUpdateData();
-      allow delete: if false;
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
     }
 
     /**
