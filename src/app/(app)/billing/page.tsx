@@ -107,15 +107,15 @@ export default function BillingPage() {
 
   const { data: transactions, isLoading: isLoadingTransactions } = useCollection(transactionsQuery);
 
-  const userTransactions = useMemo(
+  const myTransactions = useMemo(
     () => transactions?.filter(t => t.path?.includes(user?.uid || '')) || [],
     [transactions, user]
   );
 
   const currentBalance = useMemo(
     () =>
-      userTransactions?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0,
-    [userTransactions]
+      myTransactions?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0,
+    [myTransactions]
   );
   
   const form = useForm<TopUpFormData>({
@@ -144,10 +144,11 @@ export default function BillingPage() {
         'tokenTransactions'
       );
       await addDoc(transactionsColRef, {
+        userId: userId, // Keep track of the user for admin view
         amount: amount,
         transactionType: 'top-up',
         timestamp: serverTimestamp(),
-        description: `Top-up by Admin`,
+        description: `Top-up by Admin (${user.email})`,
       });
       
       const toppedUpUser = users?.find(u => u.id === userId);
@@ -181,16 +182,21 @@ export default function BillingPage() {
   
   const isLoading = isLoadingTransactions || isLoadingProfile || isLoadingUsers;
 
-  // Enhance transactions with user info
+  // Enhance transactions with user info for display
   const enrichedTransactions = useMemo(() => {
     if (isLoading || !transactions || !users) return [];
+    if(userProfile?.role !== 'Admin') {
+      // Non-admins see only their transactions, user info is not needed
+      return myTransactions;
+    }
+    // Admins see all transactions, so we enrich them with user details.
     return transactions.map(t => {
-      // path is like 'users/USER_ID/tokenTransactions/TRANSACTION_ID'
+      // Path is like 'users/USER_ID/tokenTransactions/TRANSACTION_ID'
       const userId = t.path?.split('/')[1];
       const transactionUser = users.find(u => u.id === userId);
       return { ...t, user: transactionUser };
     });
-  }, [isLoading, transactions, users]);
+  }, [isLoading, transactions, users, userProfile, myTransactions]);
 
   return (
     <div className="w-full space-y-8">
@@ -280,7 +286,7 @@ export default function BillingPage() {
                                     type="number"
                                     placeholder="1000"
                                     {...field}
-                                    onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                                    onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
                                     className="pl-4"
                                 />
                             </div>
@@ -305,7 +311,10 @@ export default function BillingPage() {
         <CardHeader>
           <CardTitle>Transaction History</CardTitle>
           <CardDescription>
-            A record of all token transactions in the system.
+            {userProfile?.role === 'Admin' 
+              ? 'A record of all token transactions in the system.'
+              : 'A record of your token transactions.'
+            }
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -374,6 +383,3 @@ export default function BillingPage() {
     </div>
   );
 }
-
-
-    
