@@ -19,6 +19,4 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
 )
 Input.displayName = "Input"
 
-// Exporting CodeBlock here to make it available for use
-export { CodeBlock } from './code-block';
 export { Input }
