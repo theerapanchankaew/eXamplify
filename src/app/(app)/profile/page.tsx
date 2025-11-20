@@ -152,7 +152,12 @@ export default function ProfilePage() {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       const context = canvas.getContext('2d');
-      context?.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+      if (context) {
+        // Flip the canvas context horizontally to un-mirror the captured image.
+        context.translate(video.videoWidth, 0);
+        context.scale(-1, 1);
+        context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+      }
       const dataUrl = canvas.toDataURL('image/png');
       setCapturedImage(dataUrl);
     }
@@ -268,7 +273,7 @@ export default function ProfilePage() {
                       <img src={capturedImage} alt="Captured" className="rounded-md" />
                     </div>
                   ) : (
-                    <video ref={videoRef} className="w-full aspect-video rounded-md bg-muted" autoPlay muted playsInline />
+                    <video ref={videoRef} className="w-full aspect-video rounded-md bg-muted [-scale-x-100]" autoPlay muted playsInline />
                   )}
                   <canvas ref={canvasRef} className="hidden" />
                 </div>
