@@ -3,7 +3,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useAuth, useFirestore, useUser } from '@/firebase';
+import { useAuth, useFirestore, useUser, useDoc, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -25,6 +25,7 @@ import { useToast } from '@/hooks/use-toast';
 import { doc, updateDoc } from 'firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useEffect } from 'react';
 
 const profileSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters long.'),
@@ -37,12 +38,26 @@ export default function ProfilePage() {
   const firestore = useFirestore();
   const { toast } = useToast();
 
+  const userDocRef = useMemoFirebase(
+    () => (firestore && user ? doc(firestore, 'users', user.uid) : null),
+    [firestore, user]
+  );
+  const { data: userProfile, isLoading: isLoadingProfile } = useDoc(userDocRef);
+
   const form = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
-    values: {
-      username: user?.displayName || '',
+    defaultValues: {
+      username: '',
     },
   });
+
+  useEffect(() => {
+    if (userProfile) {
+      form.reset({
+        username: userProfile.username || '',
+      });
+    }
+  }, [userProfile, form]);
 
   const handleUpdateProfile = async (data: ProfileFormData) => {
     if (!user || !firestore) {
@@ -71,7 +86,7 @@ export default function ProfilePage() {
     }
   };
 
-  if (isUserLoading) {
+  if (isUserLoading || isLoadingProfile) {
     return (
         <div className="space-y-6">
             <h1 className="text-3xl font-bold">Profile</h1>
@@ -125,7 +140,7 @@ export default function ProfilePage() {
               </AvatarFallback>
             </Avatar>
             <div>
-                <p className="text-2xl font-semibold">{form.watch('username') || user.displayName}</p>
+                <p className="text-2xl font-semibold">{userProfile?.username || 'User'}</p>
                 <p className="text-muted-foreground">{user.email}</p>
             </div>
           </div>

@@ -40,7 +40,7 @@ export function AppHeader() {
         return query(collectionGroup(firestore, 'tokenTransactions'));
       }
       // For other users, get only their own transactions
-      return query(collection(firestore, 'users', user.uid, 'tokenTransactions'));
+      return query(collection(firestore, 'users', user!.uid, 'tokenTransactions'));
     },
     [firestore, user, userProfile]
   );
@@ -114,7 +114,7 @@ export function AppHeader() {
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">{user.displayName || 'User'}</p>
+                  <p className="text-sm font-medium leading-none">{user.displayName || userProfile?.username || 'User'}</p>
                   <p className="text-xs leading-none text-muted-foreground">
                     {user.email}
                   </p>

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -51,7 +50,7 @@ import {
 } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { CreditCard, Wallet, User as UserIcon } from 'lucide-react';
+import { CreditCard, Wallet } from 'lucide-react';
 import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
@@ -98,7 +97,7 @@ export default function BillingPage() {
       }
       // Regular user sees only their own transactions
       return query(
-        collection(firestore, 'users', user.uid, 'tokenTransactions'),
+        collection(firestore, 'users', user!.uid, 'tokenTransactions'),
         orderBy('timestamp', 'desc')
       );
     },
@@ -380,5 +379,3 @@ export default function BillingPage() {
     </div>
   );
 }
-
-    
