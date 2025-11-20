@@ -8,7 +8,8 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
 } from 'firebase/auth';
-import { useAuth, useUser } from '@/firebase';
+import { doc, setDoc } from 'firebase/firestore';
+import { useAuth, useFirestore, useUser } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -28,6 +29,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { redirect } from 'next/navigation';
+import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Invalid email address.' }),
@@ -38,6 +40,7 @@ const formSchema = z.object({
 
 export default function LoginPage() {
   const auth = useAuth();
+  const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -69,7 +72,22 @@ export default function LoginPage() {
   const handleSignUp = async (values: z.infer<typeof formSchema>) => {
     setIsLoading(true);
     try {
-      await createUserWithEmailAndPassword(auth, values.email, values.password);
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        values.email,
+        values.password
+      );
+      const newUser = userCredential.user;
+
+      // Create user document in Firestore
+      const userDocRef = doc(firestore, 'users', newUser.uid);
+      await setDoc(userDocRef, {
+        id: newUser.uid,
+        email: newUser.email,
+        role: 'Student', // Default role
+        username: newUser.email?.split('@')[0] || '',
+      });
+
       toast({
         title: 'Success',
         description: 'Account created successfully. Please log in.',
