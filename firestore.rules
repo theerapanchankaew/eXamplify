@@ -9,7 +9,7 @@
  * under /users/{userId}. Course content itself is deeply nested under /courses/{courseId} to maintain a clear hierarchy.
  *
  * Key Security Decisions:
- * - User data is strictly private. All collections under `/users/{userId}` are only accessible by that user. User listing is disabled.
+ * - User data is strictly private. All collections under `/users/{userId}` are only accessible by that user. User listing is restricted to admins.
  * - Course content management is delegated to instructors. An `instructorId` field on each course document is the source of truth for write permissions on the course and all its sub-collections (modules, exams, etc.).
  * - Global administrators, defined in a separate `/roles_admin` collection, have override permissions for moderation and management.
  * - Publicly browsable content (courses, community posts) is readable by anyone, but write access is restricted to the content owner (author/instructor) or an admin.
@@ -125,11 +125,11 @@ service cloud.firestore {
      * @path /users/{userId}
      * @allow A new user (create) their own profile: auth.uid = 'user_123', path = /users/user_123
      * @deny A user (update) another user's profile: auth.uid = 'user_123', path = /users/user_456
-     * @principle Enforces self-management of user profiles and prevents user enumeration.
+     * @principle Enforces self-management of user profiles and prevents user enumeration for non-admins.
      */
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
-      allow list: if false;
+      allow list: if isAdmin();
       allow create: if isOwner(userId) && hasValidUserCreateData(userId);
       allow update: if (isOwner(userId) || isAdmin());// && getAfter() != null && hasValidUserUpdateData();
       allow delete: if false;
