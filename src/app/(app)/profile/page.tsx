@@ -149,7 +149,7 @@ export default function ProfilePage() {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      const size = 256; // Define a smaller size for the profile picture
+      const size = 128; // Define a smaller size for the profile picture
       canvas.width = size;
       canvas.height = size;
       const context = canvas.getContext('2d');
@@ -281,7 +281,7 @@ export default function ProfilePage() {
                     Center your face in the frame and capture a new photo.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 flex justify-center">
+                <div className="space-y-4 flex flex-col items-center">
                   {hasCameraPermission === false ? (
                       <Alert variant="destructive">
                         <AlertTitle>Camera Access Required</AlertTitle>
@@ -291,10 +291,10 @@ export default function ProfilePage() {
                       </Alert>
                   ) : capturedImage ? (
                     <div className="flex flex-col items-center space-y-4">
-                      <img src={capturedImage} alt="Captured" className="w-64 h-64 rounded-full object-cover" />
+                       <img src={capturedImage} alt="Captured" className="w-64 h-64 rounded-full object-cover" />
                     </div>
                   ) : (
-                    <video ref={videoRef} className="w-64 h-64 rounded-full object-cover bg-muted scale-x-[-1]" autoPlay muted playsInline />
+                     <video ref={videoRef} className="w-64 h-64 rounded-full object-cover bg-muted scale-x-[-1]" autoPlay muted playsInline />
                   )}
                   <canvas ref={canvasRef} className="hidden" />
                 </div>
