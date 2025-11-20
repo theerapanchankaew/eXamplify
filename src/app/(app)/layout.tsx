@@ -13,20 +13,26 @@ export default function AppLayout({
   children: React.ReactNode;
 }>) {
   const { user, isUserLoading } = useUser();
-  const [isClient, setIsClient] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   useEffect(() => {
-    setIsClient(true);
-  }, []);
+    // This effect runs only on the client.
+    // When it runs, we know we are past the server render.
+    // We also wait for Firebase auth to give us a definitive answer.
+    if (!isUserLoading) {
+      setInitialLoading(false);
+    }
+  }, [isUserLoading]);
 
   useEffect(() => {
-    if (isClient && !isUserLoading && !user) {
+    // Redirect if not loading and no user is found.
+    if (!initialLoading && !user) {
       redirect('/login');
     }
-  }, [user, isUserLoading, isClient]);
+  }, [user, initialLoading]);
 
 
-  if (!isClient || isUserLoading) {
+  if (initialLoading) {
     return (
         <div className="flex h-screen items-center justify-center">
             <p>Loading...</p>
@@ -35,6 +41,7 @@ export default function AppLayout({
   }
 
   if (!user) {
+    // This will be rendered briefly during the redirect.
     return null;
   }
 
