@@ -158,7 +158,7 @@ export default function ProfilePage() {
         context.translate(size, 0);
         context.scale(-1, 1);
         
-        // Draw the video frame to the canvas, scaling it to fit the new size
+        // Draw the video frame to the canvas, cropping it to a square
         const videoAR = video.videoWidth / video.videoHeight;
         let sX, sY, sWidth, sHeight;
 
