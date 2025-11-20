@@ -57,23 +57,6 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    //**
-    // * Checks if the request is from the owner of an existing document.
-    // * Used for update and delete operations to prevent modifying non-existent data.
-    // */
-    //function isExistingOwner(userId) {
-    //  return isOwner(userId) && resource != null;
-    //}
-
-    /**
-     * Checks if the requesting user is the designated instructor for a given course.
-     * This performs a read on the course document to check the `instructorId`.
-     */
-    function isCourseInstructor(courseId) {
-      let course = get(/databases/$(database)/documents/courses/$(courseId));
-      return isSignedIn() && course.data.instructorId == request.auth.uid;
-    }
-
     /**
      * Validates that the `id` field within a new user document matches the
      * document's ID, ensuring relational integrity.
@@ -82,12 +65,6 @@ service cloud.firestore {
       return request.resource.data.id == userId;
     }
 
-    /**
-     * Enforces immutability of the user's ID field on update.
-     */
-    //function hasValidUserUpdateData() {
-    //  return request.resource.data.id == resource.data.id;
-    //}
 
     // ------------------------------------------------------------------------
     // Administrative Collections
@@ -162,6 +139,11 @@ service cloud.firestore {
     // ------------------------------------------------------------------------
     // Course and Content Collections
     // ------------------------------------------------------------------------
+    
+    function isCourseInstructor(courseId) {
+      let course = get(/databases/$(database)/documents/courses/$(courseId));
+      return isSignedIn() && course.data.instructorId == request.auth.uid;
+    }
 
     /**
      * @description Stores course information. Publicly readable as a catalog.
@@ -173,7 +155,7 @@ service cloud.firestore {
     match /courses/{courseId} {
       allow get, list: if true;
       allow create: if isSignedIn() && request.resource.data.instructorId == request.auth.uid;
-      allow update, delete: if (isCourseInstructor(courseId) || isAdmin());// && getAfter() != null;
+      allow update, delete: if isCourseInstructor(courseId) || isAdmin();
     }
 
     /**
@@ -186,7 +168,7 @@ service cloud.firestore {
     match /courses/{courseId}/modules/{moduleId} {
       allow get, list: if true; // TODO: Restrict reads to approved enrolled students
       allow create: if isCourseInstructor(courseId) && request.resource.data.courseId == courseId;
-      allow update, delete: if isCourseInstructor(courseId);// && getAfter() != null;
+      allow update, delete: if isCourseInstructor(courseId);
     }
 
     /**
@@ -199,7 +181,7 @@ service cloud.firestore {
     match /courses/{courseId}/modules/{moduleId}/chapters/{chapterId} {
       allow get, list: if true; // TODO: Restrict reads to approved enrolled students
       allow create: if isCourseInstructor(courseId) && request.resource.data.moduleId == moduleId;
-      allow update, delete: if isCourseInstructor(courseId);// && getAfter() != null;
+      allow update, delete: if isCourseInstructor(courseId);
     }
 
     /**
@@ -212,7 +194,7 @@ service cloud.firestore {
     match /courses/{courseId}/modules/{moduleId}/chapters/{chapterId}/lessons/{lessonId} {
       allow get, list: if true; // TODO: Restrict reads to approved enrolled students
       allow create: if isCourseInstructor(courseId) && request.resource.data.chapterId == chapterId;
-      allow update, delete: if isCourseInstructor(courseId);// && getAfter() != null;
+      allow update, delete: if isCourseInstructor(courseId);
     }
 
     /**
@@ -225,7 +207,7 @@ service cloud.firestore {
     match /courses/{courseId}/exams/{examId} {
       allow get, list: if true; // TODO: Restrict reads to approved enrolled students
       allow create: if isCourseInstructor(courseId) && request.resource.data.courseId == courseId;
-      allow update, delete: if isCourseInstructor(courseId);// && getAfter() != null;
+      allow update, delete: if isCourseInstructor(courseId);
     }
 
     /**
@@ -238,7 +220,7 @@ service cloud.firestore {
     match /courses/{courseId}/exams/{examId}/questions/{questionId} {
       allow get, list: if true; // TODO: Restrict reads to approved enrolled students
       allow create: if isCourseInstructor(courseId) && request.resource.data.examId == examId;
-      allow update, delete: if isCourseInstructor(courseId);// && getAfter() != null;
+      allow update, delete: if isCourseInstructor(courseId);
     }
     
     // ------------------------------------------------------------------------
@@ -255,8 +237,8 @@ service cloud.firestore {
     match /community_posts/{postId} {
       allow get, list: if true;
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isOwner(resource.data.userId);// && getAfter() != null;
-      allow delete: if (isOwner(resource.data.userId) || isAdmin());// && getAfter() != null;
+      allow update: if isOwner(resource.data.userId);
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
     }
 
     /**
@@ -270,8 +252,8 @@ service cloud.firestore {
       allow get: if isSignedIn() && (isOwner(resource.data.userId) || isCourseInstructor(resource.data.courseId) || isAdmin());
       allow list: if false; // Listing enrollments can expose private data and is disabled for clients.
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if (isCourseInstructor(resource.data.courseId) || isAdmin());// && getAfter() != null;
-      allow delete: if (isOwner(resource.data.userId) || isCourseInstructor(resource.data.courseId) || isAdmin());// && getAfter() != null;
+      allow update: if isCourseInstructor(resource.data.courseId) || isAdmin();
+      allow delete: if isOwner(resource.data.userId) || isCourseInstructor(resource.data.courseId) || isAdmin();
     }
 
     // ------------------------------------------------------------------------
