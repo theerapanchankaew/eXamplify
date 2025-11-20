@@ -149,19 +149,40 @@ export default function ProfilePage() {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      const size = 256; // Define a smaller size for the profile picture
+      canvas.width = size;
+      canvas.height = size;
       const context = canvas.getContext('2d');
       if (context) {
-        // Flip the canvas context horizontally to un-mirror the captured image.
-        context.translate(video.videoWidth, 0);
+        // Flip the context horizontally to get a non-mirrored image
+        context.translate(size, 0);
         context.scale(-1, 1);
-        context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+        
+        // Draw the video frame to the canvas, scaling it to fit the new size
+        const videoAR = video.videoWidth / video.videoHeight;
+        let sX, sY, sWidth, sHeight;
+
+        if (videoAR > 1) { // Landscape video
+            sHeight = video.videoHeight;
+            sWidth = video.videoHeight;
+            sX = (video.videoWidth - sWidth) / 2;
+            sY = 0;
+        } else { // Portrait or square video
+            sWidth = video.videoWidth;
+            sHeight = video.videoWidth;
+            sX = 0;
+            sY = (video.videoHeight - sHeight) / 2;
+        }
+
+        context.drawImage(video, sX, sY, sWidth, sHeight, 0, 0, size, size);
       }
-      const dataUrl = canvas.toDataURL('image/png');
+      
+      // Get the data URL with a specified quality for JPEG
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
       setCapturedImage(dataUrl);
     }
   };
+  
 
   const handleSavePicture = async () => {
     if (!capturedImage || !auth.currentUser || !firestore) return;
@@ -270,10 +291,10 @@ export default function ProfilePage() {
                       </Alert>
                   ) : capturedImage ? (
                     <div className="flex flex-col items-center space-y-4">
-                      <img src={capturedImage} alt="Captured" className="rounded-full w-64 h-64 object-cover" />
+                      <img src={capturedImage} alt="Captured" className="w-64 h-64 rounded-full object-cover" />
                     </div>
                   ) : (
-                    <video ref={videoRef} className="w-64 h-64 rounded-full object-cover bg-muted [-scale-x-100]" autoPlay muted playsInline />
+                    <video ref={videoRef} className="w-64 h-64 rounded-full object-cover bg-muted scale-x-[-1]" autoPlay muted playsInline />
                   )}
                   <canvas ref={canvasRef} className="hidden" />
                 </div>
