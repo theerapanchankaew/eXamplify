@@ -37,15 +37,16 @@ const formSchema = z.object({
   }),
 });
 
+type FormData = z.infer<typeof formSchema>;
+
 export default function LoginPage() {
   const auth = useAuth();
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [isSigningUp, setIsSigningUp] = useState(false);
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: '',
@@ -53,7 +54,7 @@ export default function LoginPage() {
     },
   });
 
-  const handleLogin = async (values: z.infer<typeof formSchema>) => {
+  const handleLogin = async (values: FormData) => {
     setIsLoading(true);
     if (!auth) {
         toast({
@@ -78,9 +79,8 @@ export default function LoginPage() {
     }
   };
 
-  const handleSignUp = async (values: z.infer<typeof formSchema>) => {
+  const handleSignUp = async (values: FormData) => {
     setIsLoading(true);
-    setIsSigningUp(true);
     if (!auth || !firestore) {
         toast({
             variant: 'destructive',
@@ -88,7 +88,6 @@ export default function LoginPage() {
             description: 'Firebase services are not available.',
         });
         setIsLoading(false);
-        setIsSigningUp(false);
         return;
     }
     try {
@@ -102,10 +101,8 @@ export default function LoginPage() {
       const isAdmin = values.email.toLowerCase() === 'admin@masci.com';
       const userRole = isAdmin ? 'Admin' : 'Student';
 
-      // Use a batch to ensure atomic writes
       const batch = writeBatch(firestore);
 
-      // Create user document in Firestore
       const userDocRef = doc(firestore, 'users', newUser.uid);
       batch.set(userDocRef, {
         id: newUser.uid,
@@ -123,10 +120,9 @@ export default function LoginPage() {
 
       toast({
         title: 'Success',
-        description: 'Account created successfully. Please log in.',
+        description: 'Account created successfully. You are now logged in.',
       });
-      // Clear form for login
-      form.reset();
+      // No need to clear form, user will be redirected
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -135,18 +131,9 @@ export default function LoginPage() {
       });
     } finally {
       setIsLoading(false);
-      setIsSigningUp(false);
     }
   };
   
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
-    if (isSigningUp) {
-      handleSignUp(values);
-    } else {
-      handleLogin(values);
-    }
-  };
-
   if (user) {
     redirect('/dashboard');
   }
@@ -155,14 +142,14 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle className="text-2xl">Login</CardTitle>
+          <CardTitle className="text-2xl">eXamplify</CardTitle>
           <CardDescription>
-            Enter your email below to login to your account.
+            Enter your credentials to access your account.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form className="space-y-4">
               <FormField
                 control={form.control}
                 name="email"
@@ -197,18 +184,18 @@ export default function LoginPage() {
                   </FormItem>
                 )}
               />
-              <div className="flex flex-col space-y-2">
-                <Button type="submit" className="w-full" disabled={isLoading} onClick={() => setIsSigningUp(false)}>
-                  {isLoading && !isSigningUp ? 'Loading...' : 'Login'}
+              <div className="flex flex-col space-y-2 pt-2">
+                <Button type="button" className="w-full" disabled={isLoading} onClick={form.handleSubmit(handleLogin)}>
+                  {isLoading ? 'Loading...' : 'Login'}
                 </Button>
                 <Button
-                  type="submit"
+                  type="button"
                   variant="outline"
                   className="w-full"
-                  onClick={() => setIsSigningUp(true)}
+                  onClick={form.handleSubmit(handleSignUp)}
                   disabled={isLoading}
                 >
-                  {isLoading && isSigningUp ? 'Loading...' : 'Sign Up'}
+                  {isLoading ? 'Loading...' : 'Sign Up'}
                 </Button>
               </div>
             </form>
