@@ -8,25 +8,7 @@ import { redirect } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 
-export default function AppLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  const { user, isUserLoading } = useUser();
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (isMounted && !isUserLoading && !user) {
-      redirect('/login');
-    }
-  }, [user, isUserLoading, isMounted]);
-
-  if (!isMounted || isUserLoading) {
+function AppLayoutSkeleton() {
     return (
       <div className="flex h-screen w-full flex-col">
         {/* Header Skeleton */}
@@ -64,16 +46,29 @@ export default function AppLayout({
         </div>
       </div>
     );
-  }
-  
-  if (!user) {
-    // This case will likely be caught by the redirect effect,
-    // but it's good practice to have a fallback.
-    return (
-        <div className="flex h-screen items-center justify-center">
-            <p>Redirecting to login...</p>
-        </div>
-    );
+}
+
+
+export default function AppLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  const { user, isUserLoading } = useUser();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (isMounted && !isUserLoading && !user) {
+      redirect('/login');
+    }
+  }, [user, isUserLoading, isMounted]);
+
+  if (!isMounted || isUserLoading || !user) {
+    return <AppLayoutSkeleton />;
   }
 
   return (
