@@ -67,23 +67,11 @@ service cloud.firestore {
     
     /**
      * Checks if the only field being changed is the 'role'.
-     * This function is crucial for allowing admins to manage roles without
-     * being able to alter other user data. It ensures that any key other
-     * than 'role' remains unchanged during an update operation by an admin.
+     * This is a simple and effective check for admin role management.
+     * It ensures the incoming request data contains exactly one key, and that key is 'role'.
      */
     function isChangingOnlyRole() {
-      // Get a combined set of all keys from the old and new data.
-      let allKeys = request.resource.data.keys().concat(resource.data.keys()).toSet();
-      // Define the set of keys that are allowed to be modified by an admin.
-      let mutableKeys = ['role'].toSet();
-      
-      // The operation is valid if every key in the combined set either:
-      // 1. Is one of the explicitly mutable keys ('role').
-      // 2. Or, if it's not a mutable key, its value must be identical in both the before and after states.
-      return allKeys.size() > 0 && allKeys.every(key =>
-        mutableKeys.has(key) ||
-        (key in request.resource.data && key in resource.data && request.resource.data[key] == resource.data[key])
-      );
+      return request.resource.data.keys().size() == 1 && 'role' in request.resource.data;
     }
 
     /**
@@ -357,3 +345,5 @@ service cloud.firestore {
 
   }
 }
+
+    
