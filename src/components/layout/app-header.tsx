@@ -106,8 +106,8 @@ export function AppHeader() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
                 <Avatar className="h-9 w-9" data-ai-hint="person face">
-                  <AvatarImage src={`https://picsum.photos/seed/${user.uid}/40/40`} alt="User" />
-                  <AvatarFallback>{user.email?.charAt(0).toUpperCase()}</AvatarFallback>
+                  <AvatarImage src={user.photoURL || `https://picsum.photos/seed/${user.uid}/40/40`} alt="User" />
+                  <AvatarFallback>{userProfile?.username?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase()}</AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>

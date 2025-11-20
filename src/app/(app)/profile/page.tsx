@@ -239,7 +239,7 @@ export default function ProfilePage() {
                       alt="User Avatar"
                     />
                     <AvatarFallback>
-                      {user.email ? user.email.charAt(0).toUpperCase() : 'U'}
+                      {userProfile?.username?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase() || 'U'}
                     </AvatarFallback>
                   </Avatar>
                   <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
