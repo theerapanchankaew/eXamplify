@@ -65,6 +65,30 @@ service cloud.firestore {
       return request.resource.data.id == userId;
     }
 
+    /**
+     * Checks if the only field being changed is the 'role'.
+     */
+    function isChangingOnlyRole() {
+      // Get all keys from the new data and the existing data.
+      let allKeys = request.resource.data.keys().concat(resource.data.keys()).toSet();
+      // Define the keys that are allowed to be different. In this case, only 'role'.
+      let mutableKeys = ['role'].toSet();
+      // Check every key.
+      return allKeys.size() > 0 && allKeys.every(key =>
+        // If the key is 'role', it can be different.
+        mutableKeys.has(key) ||
+        // If the key is not 'role', its value must be the same in both old and new data.
+        (key in request.resource.data && key in resource.data && request.resource.data[key] == resource.data[key])
+      );
+    }
+
+    /**
+     * Checks if the 'role' field is not being changed.
+     */
+    function isRoleUnchanged() {
+      return !('role' in request.resource.data) || request.resource.data.role == resource.data.role;
+    }
+
 
     // ------------------------------------------------------------------------
     // Administrative Collections
@@ -108,7 +132,8 @@ service cloud.firestore {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isSignedIn();
       allow create: if isOwner(userId) && hasValidUserCreateData(userId) || isAdmin();
-      allow update: if isOwner(userId) || isAdmin();
+      // Admins can ONLY change the role. Owners can change anything EXCEPT the role.
+      allow update: if (isAdmin() && isChangingOnlyRole()) || (isOwner(userId) && isRoleUnchanged());
       allow delete: if isAdmin();
     }
 
