@@ -74,7 +74,7 @@ export default function DashboardPage() {
               ) : (
                 <>
                   <div className="text-2xl font-bold">
-                    +{users?.length || 0}
+                    {users?.length || 0}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Total registered users
