@@ -70,8 +70,7 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 
-const userSchema = z.object({
-  username: z.string().min(1, 'Username is required'),
+const userRoleSchema = z.object({
   role: z.enum(['Admin', 'Instructor', 'Student']),
 });
 
@@ -82,7 +81,7 @@ const newUserSchema = z.object({
     username: z.string().min(1, 'Username is required'),
 });
 
-type UserFormData = z.infer<typeof userSchema>;
+type UserRoleFormData = z.infer<typeof userRoleSchema>;
 type NewUserFormData = z.infer<typeof newUserSchema>;
 
 
@@ -103,8 +102,8 @@ export default function UsersPage() {
   const [isAddUserDialogOpen, setAddUserDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
 
-  const form = useForm<UserFormData>({
-    resolver: zodResolver(userSchema),
+  const form = useForm<UserRoleFormData>({
+    resolver: zodResolver(userRoleSchema),
   });
 
   const newUserForm = useForm<NewUserFormData>({
@@ -120,7 +119,6 @@ export default function UsersPage() {
   const handleEditClick = (user: any) => {
     setSelectedUser(user);
     form.reset({
-      username: user.username || '',
       role: user.role || 'Student',
     });
     setEditDialogOpen(true);
@@ -131,7 +129,7 @@ export default function UsersPage() {
     setDeleteDialogOpen(true);
   };
 
-  const handleUpdateUser = async (data: UserFormData) => {
+  const handleUpdateUser = async (data: UserRoleFormData) => {
     if (!firestore || !selectedUser) return;
     
     const batch = writeBatch(firestore);
@@ -139,7 +137,8 @@ export default function UsersPage() {
     const adminRoleRef = doc(firestore, 'roles_admin', selectedUser.id);
 
     try {
-      batch.update(userDocRef, { role: data.role, username: data.username });
+      // Only update the role
+      batch.update(userDocRef, { role: data.role });
 
       if (data.role === 'Admin') {
         batch.set(adminRoleRef, { role: 'admin' });
@@ -150,8 +149,8 @@ export default function UsersPage() {
       await batch.commit();
 
       toast({
-        title: 'User Updated',
-        description: `User ${selectedUser.email} has been updated.`,
+        title: 'User Role Updated',
+        description: `User ${selectedUser.email}'s role has been updated.`,
       });
       setEditDialogOpen(false);
       setSelectedUser(null);
@@ -252,7 +251,7 @@ export default function UsersPage() {
             <div>
                 <CardTitle>Users</CardTitle>
                 <CardDescription>
-                    Manage your users and view their activity.
+                    Manage user roles and view their activity.
                 </CardDescription>
             </div>
             <Button onClick={() => setAddUserDialogOpen(true)}>Add User</Button>
@@ -339,7 +338,7 @@ export default function UsersPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => handleEditClick(user)}>Edit</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleEditClick(user)}>Edit Role</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleDeleteClick(user)} className="text-red-600">Delete</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -442,26 +441,21 @@ export default function UsersPage() {
       <Dialog open={isEditDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit User</DialogTitle>
+            <DialogTitle>Edit User Role</DialogTitle>
             <DialogDescription>
-              Make changes to the user's profile here. Click save when you're done.
+              Change the role for {selectedUser?.username || selectedUser?.email}.
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleUpdateUser)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="username"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Username</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g. John Doe" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Username</p>
+                <p className="text-sm text-muted-foreground p-2 border rounded-md bg-muted">{selectedUser?.username || 'N/A'}</p>
+              </div>
+               <div className="space-y-2">
+                <p className="text-sm font-medium">Email</p>
+                <p className="text-sm text-muted-foreground p-2 border rounded-md bg-muted">{selectedUser?.email}</p>
+              </div>
               <FormField
                 control={form.control}
                 name="role"
