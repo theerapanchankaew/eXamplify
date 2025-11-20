@@ -1,7 +1,7 @@
 'use client';
 import { Bell, LogOut, Search, Settings, User, Wallet } from 'lucide-react';
 import Link from 'next/link';
-import { getAuth, signOut } from 'firebase/auth';
+import { signOut } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -15,11 +15,27 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { SidebarTrigger } from '../ui/sidebar';
 import { PageTitle } from './page-title';
-import { useUser, useAuth } from '@/firebase';
+import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query } from 'firebase/firestore';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function AppHeader() {
   const { user } = useUser();
   const auth = useAuth();
+  const firestore = useFirestore();
+
+  const userTokenTransactionsQuery = useMemoFirebase(
+    () => (firestore && user ? query(collection(firestore, 'users', user.uid, 'tokenTransactions')) : null),
+    [firestore, user]
+  );
+
+  const { data: tokenTransactions, isLoading: isLoadingTokens } = useCollection(userTokenTransactionsQuery);
+
+  const totalUserTokens = useMemoFirebase(
+    () => tokenTransactions?.reduce((sum, transaction) => sum + (transaction.amount || 0), 0) || 0,
+    [tokenTransactions]
+  );
+
 
   const handleLogout = async () => {
     if (auth) {
@@ -51,7 +67,11 @@ export function AppHeader() {
             <Wallet className="h-5 w-5" />
             <span className="sr-only">Wallet</span>
           </Button>
-          <span className="font-semibold text-sm">1,250</span>
+          {isLoadingTokens ? (
+             <Skeleton className="h-5 w-12" />
+          ) : (
+            <span className="font-semibold text-sm">{totalUserTokens.toLocaleString()}</span>
+          )}
         </div>
 
         <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
@@ -63,8 +83,8 @@ export function AppHeader() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
-                <Avatar className="h-9 w-9">
-                  <AvatarImage src={user.photoURL ?? ''} alt="User" data-ai-hint="person face" />
+                <Avatar className="h-9 w-9" data-ai-hint="person face">
+                  <AvatarImage src={`https://picsum.photos/seed/${user.uid}/40/40`} alt="User" />
                   <AvatarFallback>{user.email?.charAt(0).toUpperCase()}</AvatarFallback>
                 </Avatar>
               </Button>
