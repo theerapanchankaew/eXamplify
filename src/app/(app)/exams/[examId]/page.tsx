@@ -14,6 +14,7 @@ import {
   updateDoc,
   deleteDoc,
   serverTimestamp,
+  writeBatch,
 } from 'firebase/firestore';
 import Link from 'next/link';
 
@@ -78,13 +79,14 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, MoreHorizontal, PlusCircle } from 'lucide-react';
+import { ArrowLeft, MoreHorizontal, PlusCircle, Import, FileJson } from 'lucide-react';
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
+import { CodeBlock } from '@/components/ui/code-block';
 
 const questionSchema = z.object({
   text: z.string().min(1, 'Question text is required.'),
@@ -93,6 +95,32 @@ const questionSchema = z.object({
   answer: z.string().min(1, 'Answer is required.'),
   options: z.array(z.string()).optional(),
 });
+
+const importedQuestionsSchema = z.array(
+    z.object({
+      text: z.string().min(1),
+      type: z.enum(['Multiple Choice', 'True/False', 'Short Answer']),
+      points: z.number().positive(),
+      answer: z.string().min(1),
+      options: z.array(z.string()).optional(),
+    })
+);
+
+const exampleJson = JSON.stringify([
+    {
+      "text": "What is 2 + 2?",
+      "type": "Multiple Choice",
+      "points": 1,
+      "answer": "4",
+      "options": ["2", "3", "4", "5"]
+    },
+     {
+      "text": "The sky is blue.",
+      "type": "True/False",
+      "points": 1,
+      "answer": "True"
+    }
+], null, 2);
 
 
 type QuestionFormData = z.infer<typeof questionSchema>;
@@ -105,10 +133,12 @@ export default function ExamDetailPage() {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Dialog states
   const [isQuestionDialogOpen, setQuestionDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [isJsonExampleDialogOpen, setJsonExampleDialogOpen] = useState(false);
   const [selectedQuestion, setSelectedQuestion] = useState<any>(null);
 
   // User Profile for permissions
@@ -222,6 +252,63 @@ export default function ExamDetailPage() {
     }
   };
   
+    const handleImportClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (!firestore || !courseId || !examId) return;
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+        try {
+            const content = e.target?.result;
+            if (typeof content !== 'string') throw new Error('Failed to read file content.');
+            
+            const parsedJson = JSON.parse(content);
+            const validatedQuestions = importedQuestionsSchema.parse(parsedJson);
+
+            const batch = writeBatch(firestore);
+            const questionsColRef = collection(firestore, 'courses', courseId as string, 'exams', examId as string, 'questions');
+
+            validatedQuestions.forEach(q => {
+            const newQuestionRef = doc(questionsColRef);
+            batch.set(newQuestionRef, {
+                ...q,
+                examId: examId,
+                createdAt: serverTimestamp(),
+            });
+            });
+
+            await batch.commit();
+            
+            toast({
+            title: 'Import Successful',
+            description: `${validatedQuestions.length} questions have been imported to this exam.`,
+            });
+        } catch (error: any) {
+            let description = 'An unknown error occurred.';
+            if (error instanceof z.ZodError) {
+            description = 'JSON format is invalid. Please check the file structure, keys, and data types.';
+            } else if (error instanceof SyntaxError) {
+            description = 'Invalid JSON file. Please ensure the file is correctly formatted.';
+            } else {
+            description = error.message;
+            }
+            toast({
+            variant: 'destructive',
+            title: 'Import Failed',
+            description: description,
+            });
+        } finally {
+            if(fileInputRef.current) fileInputRef.current.value = '';
+        }
+        };
+        reader.readAsText(file);
+    };
+
 
   if (isLoading) {
     return (
@@ -268,9 +355,24 @@ export default function ExamDetailPage() {
           </div>
           {isOwner && (
              <div className="flex items-center gap-2">
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileImport}
+                    accept=".json"
+                    className="hidden"
+                />
+                <Button variant="outline" onClick={handleImportClick}>
+                    <Import className="mr-2 h-4 w-4" />
+                    Import Questions
+                </Button>
                 <Button onClick={handleAddQuestion}>
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Add Question
+                </Button>
+                <Button variant="secondary" onClick={() => setJsonExampleDialogOpen(true)}>
+                    <FileJson className="mr-2 h-4 w-4" />
+                    JSON Example
                 </Button>
             </div>
           )}
@@ -300,14 +402,14 @@ export default function ExamDetailPage() {
               ) : questions && questions.length > 0 ? (
                 questions.map((question) => (
                   <Accordion type="single" collapsible className="w-full" key={question.id}>
-                    <AccordionItem value={question.id} className="border-b">
-                       <TableRow className="border-b-0">
-                          <TableCell className="font-medium w-[50%]">
-                            <AccordionTrigger className="text-left p-0 hover:no-underline">{question.text}</AccordionTrigger>
+                    <AccordionItem value={question.id} className="border-b-0">
+                       <TableRow className="border-b hover:bg-transparent">
+                          <TableCell className="font-medium w-[50%] align-top">
+                            <AccordionTrigger className="text-left p-0 hover:no-underline [&>svg]:mt-1">{question.text}</AccordionTrigger>
                           </TableCell>
-                          <TableCell><Badge variant="outline">{question.type}</Badge></TableCell>
-                          <TableCell>{question.points}</TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="align-top"><Badge variant="outline">{question.type}</Badge></TableCell>
+                          <TableCell className="align-top">{question.points}</TableCell>
+                          <TableCell className="text-right align-top">
                             {isOwner && (
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -325,7 +427,7 @@ export default function ExamDetailPage() {
                           </TableCell>
                         </TableRow>
                         <AccordionContent asChild>
-                            <tr>
+                           <tr>
                                 <td colSpan={4} className="p-4 bg-muted/50">
                                     <div className="grid gap-2">
                                       <h4 className="font-semibold">Correct Answer:</h4>
@@ -467,6 +569,25 @@ export default function ExamDetailPage() {
           </Form>
         </DialogContent>
       </Dialog>
+      
+      {/* JSON Example Dialog */}
+      <Dialog open={isJsonExampleDialogOpen} onOpenChange={setJsonExampleDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Import Questions - JSON Format</DialogTitle>
+            <DialogDescription>
+              Your JSON file should be an array of question objects with the following structure.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4">
+            <CodeBlock code={exampleJson} />
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setJsonExampleDialogOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
       {/* Delete Confirmation */}
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
