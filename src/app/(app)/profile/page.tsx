@@ -149,7 +149,7 @@ export default function ProfilePage() {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      const size = 128; // Keep it small to avoid large data URLs
+      const size = 256; // Increase resolution for better quality
       canvas.width = size;
       canvas.height = size;
       const context = canvas.getContext('2d');
@@ -188,7 +188,7 @@ export default function ProfilePage() {
     if (!capturedImage || !auth.currentUser || !firestore) return;
   
     try {
-      // **SOLUTION**: Save the long data URL to Firestore instead of Auth.
+      // Save the long data URL to Firestore instead of Auth.
       const userDocRef = doc(firestore, 'users', auth.currentUser.uid);
       await updateDoc(userDocRef, { photoURL: capturedImage });
   
