@@ -1,0 +1,343 @@
+/**
+ * Core Philosophy: This ruleset enforces a role-based access control system for an online learning platform.
+ * It primarily distinguishes between general users, course instructors, and administrators. The model is built
+ * on strict user ownership for private data, instructor ownership for course content, and admin privileges for
+ * system-wide management.
+ *
+ * Data Structure: The data is organized into a mix of top-level collections for public or shared data (like courses,
+ * community posts) and user-specific subcollections for private data (like certificates, transactions) nested
+ * under /users/{userId}. Course content itself is deeply nested under /courses/{courseId} to maintain a clear hierarchy.
+ *
+ * Key Security Decisions:
+ * - User data is strictly private. All collections under `/users/{userId}` are only accessible by that user. User listing is disabled.
+ * - Course content management is delegated to instructors. An `instructorId` field on each course document is the source of truth for write permissions on the course and all its sub-collections (modules, exams, etc.).
+ * - Global administrators, defined in a separate `/roles_admin` collection, have override permissions for moderation and management.
+ * - Publicly browsable content (courses, community posts) is readable by anyone, but write access is restricted to the content owner (author/instructor) or an admin.
+ * - System-level collections like Audit Logs are read-only for admins and cannot be modified by any client.
+ *
+ * Denormalization for Authorization: To ensure fast and simple authorization, this ruleset relies on denormalized
+ * owner IDs. For example, each `/courses/{courseId}` document contains an `instructorId`. This allows rules on
+ * nested content like `/courses/{courseId}/modules/{moduleId}` to verify the instructor's identity with a single `get()`
+ * call to the parent course, avoiding complex and slow lookups. Similarly, `/community_posts/{postId}` contains a `userId`
+ * to enforce author-only edit rights.
+ *
+ * Structural Segregation: The ruleset leverages separate collections for different security contexts.
+ * Private data (e.g., `/users/{userId}/certificates`) is physically separated from public content
+ * (e.g., `/community_posts`). Administrative roles are managed in a distinct `/roles_admin` collection,
+ * completely isolating permission data from application data.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------------------
+    // Helper Functions
+    // ------------------------------------------------------------------------
+
+    /**
+     * Checks if a user is signed in.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Checks if the currently signed-in user is an administrator by
+     * checking for their UID in the /roles_admin collection.
+     */
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    /**
+     * Checks if the request comes from the owner of a document.
+     * Compares the request's auth UID with the provided userId.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    //**
+    // * Checks if the request is from the owner of an existing document.
+    // * Used for update and delete operations to prevent modifying non-existent data.
+    // */
+    //function isExistingOwner(userId) {
+    //  return isOwner(userId) && resource != null;
+    //}
+
+    /**
+     * Checks if the requesting user is the designated instructor for a given course.
+     * This performs a read on the course document to check the `instructorId`.
+     */
+    function isCourseInstructor(courseId) {
+      let course = get(/databases/$(database)/documents/courses/$(courseId));
+      return isSignedIn() && course.data.instructorId == request.auth.uid;
+    }
+
+    /**
+     * Validates that the `id` field within a new user document matches the
+     * document's ID, ensuring relational integrity.
+     */
+    function hasValidUserCreateData(userId) {
+      return request.resource.data.id == userId;
+    }
+
+    /**
+     * Enforces immutability of the user's ID field on update.
+     */
+    //function hasValidUserUpdateData() {
+    //  return request.resource.data.id == resource.data.id;
+    //}
+
+    // ------------------------------------------------------------------------
+    // Administrative Collections
+    // ------------------------------------------------------------------------
+
+    /**
+     * @description Manages admin roles. Existence of a document indicates admin rights.
+     * @path /roles_admin/{userId}
+     * @allow An admin (get) their own role document: auth.uid = 'admin_user_abc', path = /roles_admin/admin_user_abc
+     * @deny A non-admin (create) a role for themselves: auth.uid = 'user_123', path = /roles_admin/user_123
+     * @principle Restricts permission management to other administrators (DBAC).
+     */
+    match /roles_admin/{userId} {
+      allow get, list, create, update, delete: if isAdmin();
+    }
+
+    /**
+     * @description Stores audit log information.
+     * @path /audit_logs/{auditLogId}
+     * @allow An admin (get) an audit log: auth.uid = 'admin_user_abc', path = /audit_logs/log_123
+     * @deny A regular user (get) an audit log: auth.uid = 'user_123', path = /audit_logs/log_123
+     * @principle Secures sensitive logs, making them read-only for admins and immutable from the client.
+     */
+    match /audit_logs/{auditLogId} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // ------------------------------------------------------------------------
+    // User Data Collections
+    // ------------------------------------------------------------------------
+
+    /**
+     * @description Stores a user's primary profile data.
+     * @path /users/{userId}
+     * @allow A new user (create) their own profile: auth.uid = 'user_123', path = /users/user_123
+     * @deny A user (update) another user's profile: auth.uid = 'user_123', path = /users/user_456
+     * @principle Enforces self-management of user profiles and prevents user enumeration.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if false;
+      allow create: if isOwner(userId) && hasValidUserCreateData(userId);
+      allow update: if (isOwner(userId) || isAdmin());// && getAfter() != null && hasValidUserUpdateData();
+      allow delete: if false;
+    }
+
+    /**
+     * @description Stores certificates awarded to a specific user.
+     * @path /users/{userId}/certificates/{certificateId}
+     * @allow A user (get) their own certificate: auth.uid = 'user_123', path = /users/user_123/certificates/cert_abc
+     * @deny A user (list) another user's certificates: auth.uid = 'user_456', path = /users/user_123/certificates
+     * @principle Restricts access to a user's own private data tree (Ownership).
+     */
+    match /users/{userId}/certificates/{certificateId} {
+      allow get, list: if isOwner(userId);
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description Stores a user's private token transaction history.
+     * @path /users/{userId}/tokenTransactions/{transactionId}
+     * @allow A user (get) their own transaction: auth.uid = 'user_123', path = /users/user_123/tokenTransactions/tx_abc
+     * @deny A user (get) another user's transaction: auth.uid = 'user_456', path = /users/user_123/tokenTransactions/tx_abc
+     * @principle Restricts access to a user's own private data tree (Ownership).
+     */
+    match /users/{userId}/tokenTransactions/{transactionId} {
+      allow get, list: if isOwner(userId);
+      allow create, update, delete: if false;
+    }
+
+    // ------------------------------------------------------------------------
+    // Course and Content Collections
+    // ------------------------------------------------------------------------
+
+    /**
+     * @description Stores course information. Publicly readable as a catalog.
+     * @path /courses/{courseId}
+     * @allow An instructor (update) their own course: auth.uid = 'instructor_abc', path = /courses/course_123
+     * @deny An instructor (update) another instructor's course: auth.uid = 'instructor_xyz', path = /courses/course_123
+     * @principle Enforces document ownership for writes based on denormalized `instructorId`.
+     */
+    match /courses/{courseId} {
+      allow get, list: if true;
+      allow create: if isSignedIn() && request.resource.data.instructorId == request.auth.uid;
+      allow update, delete: if (isCourseInstructor(courseId) || isAdmin());// && getAfter() != null;
+    }
+
+    /**
+     * @description Stores modules for a given course.
+     * @path /courses/{courseId}/modules/{moduleId}
+     * @allow The course instructor (create) a new module: auth.uid = 'instructor_abc', path = /courses/course_123/modules/mod_456
+     * @deny A different user (create) a module: auth.uid = 'user_xyz', path = /courses/course_123/modules/mod_456
+     * @principle Secures nested collections by checking ownership on the parent document.
+     */
+    match /courses/{courseId}/modules/{moduleId} {
+      allow get, list: if true; // TODO: Restrict reads to approved enrolled students
+      allow create: if isCourseInstructor(courseId) && request.resource.data.courseId == courseId;
+      allow update, delete: if isCourseInstructor(courseId);// && getAfter() != null;
+    }
+
+    /**
+     * @description Stores chapters for a given module.
+     * @path /courses/{courseId}/modules/{moduleId}/chapters/{chapterId}
+     * @allow The course instructor (create) a new chapter: auth.uid = 'instructor_abc', path = /courses/course_123/modules/mod_456/chapters/chap_789
+     * @deny A different user (delete) a chapter: auth.uid = 'user_xyz', path = /courses/course_123/modules/mod_456/chapters/chap_789
+     * @principle Secures nested collections by checking ownership on the parent document.
+     */
+    match /courses/{courseId}/modules/{moduleId}/chapters/{chapterId} {
+      allow get, list: if true; // TODO: Restrict reads to approved enrolled students
+      allow create: if isCourseInstructor(courseId) && request.resource.data.moduleId == moduleId;
+      allow update, delete: if isCourseInstructor(courseId);// && getAfter() != null;
+    }
+
+    /**
+     * @description Stores lessons for a given chapter.
+     * @path /courses/{courseId}/modules/{moduleId}/chapters/{chapterId}/lessons/{lessonId}
+     * @allow The course instructor (update) a lesson: auth.uid = 'instructor_abc', path = /courses/.../lessons/les_123
+     * @deny A different user (update) a lesson: auth.uid = 'user_xyz', path = /courses/.../lessons/les_123
+     * @principle Secures nested collections by checking ownership on the parent document.
+     */
+    match /courses/{courseId}/modules/{moduleId}/chapters/{chapterId}/lessons/{lessonId} {
+      allow get, list: if true; // TODO: Restrict reads to approved enrolled students
+      allow create: if isCourseInstructor(courseId) && request.resource.data.chapterId == chapterId;
+      allow update, delete: if isCourseInstructor(courseId);// && getAfter() != null;
+    }
+
+    /**
+     * @description Stores exams for a given course.
+     * @path /courses/{courseId}/exams/{examId}
+     * @allow The course instructor (create) a new exam: auth.uid = 'instructor_abc', path = /courses/course_123/exams/exam_456
+     * @deny A different user (create) an exam: auth.uid = 'user_xyz', path = /courses/course_123/exams/exam_456
+     * @principle Secures nested collections by checking ownership on the parent document.
+     */
+    match /courses/{courseId}/exams/{examId} {
+      allow get, list: if true; // TODO: Restrict reads to approved enrolled students
+      allow create: if isCourseInstructor(courseId) && request.resource.data.courseId == courseId;
+      allow update, delete: if isCourseInstructor(courseId);// && getAfter() != null;
+    }
+
+    /**
+     * @description Stores questions for a given exam.
+     * @path /courses/{courseId}/exams/{examId}/questions/{questionId}
+     * @allow The course instructor (delete) a question: auth.uid = 'instructor_abc', path = /courses/.../questions/q_123
+     * @deny A different user (delete) a question: auth.uid = 'user_xyz', path = /courses/.../questions/q_123
+     * @principle Secures nested collections by checking ownership on the parent document.
+     */
+    match /courses/{courseId}/exams/{examId}/questions/{questionId} {
+      allow get, list: if true; // TODO: Restrict reads to approved enrolled students
+      allow create: if isCourseInstructor(courseId) && request.resource.data.examId == examId;
+      allow update, delete: if isCourseInstructor(courseId);// && getAfter() != null;
+    }
+    
+    // ------------------------------------------------------------------------
+    // Public & Collaborative Collections
+    // ------------------------------------------------------------------------
+
+    /**
+     * @description Stores community posts. Publicly readable, but only authors can edit their own posts.
+     * @path /community_posts/{postId}
+     * @allow An author (create) their own post: auth.uid = 'user_123', data = {userId: 'user_123', ...}
+     * @deny An author (update) someone else's post: auth.uid = 'user_123', path = /community_posts/post_by_456
+     * @principle Enforces document ownership for writes and allows admin moderation.
+     */
+    match /community_posts/{postId} {
+      allow get, list: if true;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isOwner(resource.data.userId);// && getAfter() != null;
+      allow delete: if (isOwner(resource.data.userId) || isAdmin());// && getAfter() != null;
+    }
+
+    /**
+     * @description Manages student enrollments in courses.
+     * @path /enrollments/{enrollmentId}
+     * @allow A student (create) their own enrollment request: auth.uid = 'student_123', data = {userId: 'student_123', ...}
+     * @deny A student (update) the 'approved' status of their enrollment.
+     * @principle Allows self-creation but restricts state changes (approval) to authorized roles (instructor/admin).
+     */
+    match /enrollments/{enrollmentId} {
+      allow get: if isSignedIn() && (isOwner(resource.data.userId) || isCourseInstructor(resource.data.courseId) || isAdmin());
+      allow list: if false; // Listing enrollments can expose private data and is disabled for clients.
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if (isCourseInstructor(resource.data.courseId) || isAdmin());// && getAfter() != null;
+      allow delete: if (isOwner(resource.data.userId) || isCourseInstructor(resource.data.courseId) || isAdmin());// && getAfter() != null;
+    }
+
+    // ------------------------------------------------------------------------
+    // System Master Data (Public Read, Admin Write)
+    // ------------------------------------------------------------------------
+
+    /**
+     * @description Stores learning roadmaps.
+     * @path /roadmaps/{roadmapId}
+     * @allow An admin (create) a new roadmap: auth.uid = 'admin_user_abc', path = /roadmaps/roadmap_123
+     * @deny A regular user (create) a new roadmap: auth.uid = 'user_123', path = /roadmaps/roadmap_123
+     * @principle Centralizes management of master data to administrators.
+     */
+    match /roadmaps/{roadmapId} {
+      allow get, list: if true;
+      // CRITICAL: Cannot implement owner-only writes. The 'Roadmap' entity is missing an 'ownerId' or 'authorId' field.
+      allow create, update, delete: if isAdmin(); // TODO: Add owner validation once the schema is updated with an ownership field.
+    }
+
+    /**
+     * @description Stores course schedules.
+     * @path /schedules/{scheduleId}
+     * @allow An admin (create) a new schedule: auth.uid = 'admin_user_abc', path = /schedules/schedule_123
+     * @deny A regular user (create) a new schedule: auth.uid = 'user_123', path = /schedules/schedule_123
+     * @principle Centralizes management of master data to administrators.
+     */
+    match /schedules/{scheduleId} {
+      allow get, list: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    /**
+     * @description Stores defined competencies or skills.
+     * @path /competencies/{competencyId}
+     * @allow An admin (create) a new competency: auth.uid = 'admin_user_abc', path = /competencies/comp_123
+     * @deny A regular user (create) a new competency: auth.uid = 'user_123', path = /competencies/comp_123
+     * @principle Centralizes management of master data to administrators.
+     */
+    match /competencies/{competencyId} {
+      allow get, list: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    
+    /**
+     * @description Maps courses to competencies.
+     * @path /course_competencies/{courseCompetencyId}
+     * @allow An admin (create) a new mapping: auth.uid = 'admin_user_abc', path = /course_competencies/map_123
+     * @deny A regular user (create) a new mapping: auth.uid = 'user_123', path = /course_competencies/map_123
+     * @principle Centralizes management of master data to administrators.
+     */
+    match /course_competencies/{courseCompetencyId} {
+      allow get, list: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    /**
+     * @description Maps questions to competencies.
+     * @path /question_competencies/{questionCompetencyId}
+     * @allow An admin (create) a new mapping: auth.uid = 'admin_user_abc', path = /question_competencies/map_123
+     * @deny A regular user (create) a new mapping: auth.uid = 'user_123', path = /question_competencies/map_123
+     * @principle Centralizes management of master data to administrators.
+     */
+    match /question_competencies/{questionCompetencyId} {
+      allow get, list: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+  }
+}

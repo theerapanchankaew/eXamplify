@@ -1,0 +1,875 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user account in the eXamplify application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "username": {
+          "type": "string",
+          "description": "The username of the user."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address of the user.",
+          "format": "email"
+        },
+        "role": {
+          "type": "string",
+          "description": "The role of the user (e.g., admin, instructor, student)."
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "email",
+        "role"
+      ]
+    },
+    "Course": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Course",
+      "type": "object",
+      "description": "Represents a course offered in the eXamplify application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Course entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the course."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the course."
+        },
+        "instructorId": {
+          "type": "string",
+          "description": "Reference to User (Instructor). (Relationship: User 1:N Course)"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "instructorId"
+      ]
+    },
+    "Module": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Module",
+      "type": "object",
+      "description": "Represents a module within a course.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Module entity."
+        },
+        "courseId": {
+          "type": "string",
+          "description": "Reference to Course. (Relationship: Course 1:N Module)"
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the module."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the module."
+        }
+      },
+      "required": [
+        "id",
+        "courseId",
+        "name",
+        "description"
+      ]
+    },
+    "Chapter": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Chapter",
+      "type": "object",
+      "description": "Represents a chapter within a module.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Chapter entity."
+        },
+        "moduleId": {
+          "type": "string",
+          "description": "Reference to Module. (Relationship: Module 1:N Chapter)"
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the chapter."
+        },
+        "content": {
+          "type": "string",
+          "description": "The content of the chapter."
+        }
+      },
+      "required": [
+        "id",
+        "moduleId",
+        "name",
+        "content"
+      ]
+    },
+    "Lesson": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Lesson",
+      "type": "object",
+      "description": "Represents a lesson within a chapter.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Lesson entity."
+        },
+        "chapterId": {
+          "type": "string",
+          "description": "Reference to Chapter. (Relationship: Chapter 1:N Lesson)"
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the lesson."
+        },
+        "content": {
+          "type": "string",
+          "description": "The content of the lesson."
+        }
+      },
+      "required": [
+        "id",
+        "chapterId",
+        "title",
+        "content"
+      ]
+    },
+    "Exam": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Exam",
+      "type": "object",
+      "description": "Represents an exam or assessment.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Exam entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the exam."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the exam."
+        },
+        "courseId": {
+          "type": "string",
+          "description": "Reference to Course. (Relationship: Course 1:N Exam)"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "courseId"
+      ]
+    },
+    "Question": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Question",
+      "type": "object",
+      "description": "Represents a question in an exam.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Question entity."
+        },
+        "examId": {
+          "type": "string",
+          "description": "Reference to Exam. (Relationship: Exam 1:N Question)"
+        },
+        "text": {
+          "type": "string",
+          "description": "The text of the question."
+        },
+        "type": {
+          "type": "string",
+          "description": "The type of question (e.g., multiple choice, true/false)."
+        }
+      },
+      "required": [
+        "id",
+        "examId",
+        "text",
+        "type"
+      ]
+    },
+    "Roadmap": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Roadmap",
+      "type": "object",
+      "description": "Represents a learning roadmap.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Roadmap entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the roadmap."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the roadmap."
+        },
+        "courseIds": {
+          "type": "array",
+          "description": "References to Courses included in the roadmap. (Relationship: Roadmap 1:N Course)",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description"
+      ]
+    },
+    "Schedule": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Schedule",
+      "type": "object",
+      "description": "Represents a scheduled event for a course, module, or lesson.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Schedule entity."
+        },
+        "courseId": {
+          "type": "string",
+          "description": "Reference to Course. (Relationship: Schedule 1:1 Course)"
+        },
+        "startTime": {
+          "type": "string",
+          "description": "The start time of the scheduled event.",
+          "format": "date-time"
+        },
+        "endTime": {
+          "type": "string",
+          "description": "The end time of the scheduled event.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "courseId",
+        "startTime",
+        "endTime"
+      ]
+    },
+    "Certificate": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Certificate",
+      "type": "object",
+      "description": "Represents a certificate awarded to a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Certificate entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N Certificate)"
+        },
+        "courseId": {
+          "type": "string",
+          "description": "Reference to Course. (Relationship: Course 1:N Certificate)"
+        },
+        "issueDate": {
+          "type": "string",
+          "description": "The date the certificate was issued.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "courseId",
+        "issueDate"
+      ]
+    },
+    "CommunityPost": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CommunityPost",
+      "type": "object",
+      "description": "Represents a post in the community forum.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the CommunityPost entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N CommunityPost)"
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the post."
+        },
+        "content": {
+          "type": "string",
+          "description": "The content of the post."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "title",
+        "content"
+      ]
+    },
+    "TokenTransaction": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "TokenTransaction",
+      "type": "object",
+      "description": "Represents a token transaction for a user's wallet.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the TokenTransaction entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N TokenTransaction)"
+        },
+        "amount": {
+          "type": "number",
+          "description": "The amount of tokens involved in the transaction."
+        },
+        "transactionType": {
+          "type": "string",
+          "description": "The type of transaction (e.g., purchase, top-up)."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "The timestamp of the transaction.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "amount",
+        "transactionType",
+        "timestamp"
+      ]
+    },
+    "Enrollment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Enrollment",
+      "type": "object",
+      "description": "Represents a student's enrollment in a course.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Enrollment entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User (Student). (Relationship: User 1:N Enrollment)"
+        },
+        "courseId": {
+          "type": "string",
+          "description": "Reference to Course. (Relationship: Course 1:N Enrollment)"
+        },
+        "enrollmentDate": {
+          "type": "string",
+          "description": "The date the student enrolled in the course.",
+          "format": "date-time"
+        },
+        "approved": {
+          "type": "boolean",
+          "description": "Indicates whether the enrollment has been approved by an admin/instructor."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "courseId",
+        "enrollmentDate",
+        "approved"
+      ]
+    },
+    "AuditLog": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AuditLog",
+      "type": "object",
+      "description": "Represents an audit log entry for a create/update/delete action.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the AuditLog entity."
+        },
+        "entityType": {
+          "type": "string",
+          "description": "The type of entity that was affected (e.g., User, Course)."
+        },
+        "entityId": {
+          "type": "string",
+          "description": "The ID of the entity that was affected."
+        },
+        "action": {
+          "type": "string",
+          "description": "The action that was performed (e.g., create, update, delete)."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "The timestamp of the action.",
+          "format": "date-time"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User who performed the action. (Relationship: User 1:N AuditLog)"
+        },
+        "details": {
+          "type": "string",
+          "description": "Additional details about the action."
+        }
+      },
+      "required": [
+        "id",
+        "entityType",
+        "entityId",
+        "action",
+        "timestamp",
+        "userId"
+      ]
+    },
+    "Competency": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Competency",
+      "type": "object",
+      "description": "Represents a specific skill or area of expertise.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Competency entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the competency."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the competency."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description"
+      ]
+    },
+    "CourseCompetency": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CourseCompetency",
+      "type": "object",
+      "description": "Maps courses to competencies.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the CourseCompetency entity."
+        },
+        "courseId": {
+          "type": "string",
+          "description": "Reference to Course. (Relationship: Course 1:N CourseCompetency)"
+        },
+        "competencyId": {
+          "type": "string",
+          "description": "Reference to Competency. (Relationship: Competency 1:N CourseCompetency)"
+        }
+      },
+      "required": [
+        "id",
+        "courseId",
+        "competencyId"
+      ]
+    },
+    "QuestionCompetency": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "QuestionCompetency",
+      "type": "object",
+      "description": "Maps questions to competencies.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the QuestionCompetency entity."
+        },
+        "questionId": {
+          "type": "string",
+          "description": "Reference to Question. (Relationship: Question 1:N QuestionCompetency)"
+        },
+        "competencyId": {
+          "type": "string",
+          "description": "Reference to Competency. (Relationship: Competency 1:N QuestionCompetency)"
+        }
+      },
+      "required": [
+        "id",
+        "questionId",
+        "competencyId"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user account information. Path-based ownership enables user-specific security rules.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/courses/{courseId}",
+        "definition": {
+          "entityName": "Course",
+          "schema": {
+            "$ref": "#/backend/entities/Course"
+          },
+          "description": "Stores course information. Includes denormalized 'instructorId' for authorization independence.",
+          "params": [
+            {
+              "name": "courseId",
+              "description": "The unique identifier for the course."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/courses/{courseId}/modules/{moduleId}",
+        "definition": {
+          "entityName": "Module",
+          "schema": {
+            "$ref": "#/backend/entities/Module"
+          },
+          "description": "Stores module information within a course.",
+          "params": [
+            {
+              "name": "courseId",
+              "description": "The unique identifier for the course."
+            },
+            {
+              "name": "moduleId",
+              "description": "The unique identifier for the module."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/courses/{courseId}/modules/{moduleId}/chapters/{chapterId}",
+        "definition": {
+          "entityName": "Chapter",
+          "schema": {
+            "$ref": "#/backend/entities/Chapter"
+          },
+          "description": "Stores chapter information within a module.",
+          "params": [
+            {
+              "name": "courseId",
+              "description": "The unique identifier for the course."
+            },
+            {
+              "name": "moduleId",
+              "description": "The unique identifier for the module."
+            },
+            {
+              "name": "chapterId",
+              "description": "The unique identifier for the chapter."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/courses/{courseId}/modules/{moduleId}/chapters/{chapterId}/lessons/{lessonId}",
+        "definition": {
+          "entityName": "Lesson",
+          "schema": {
+            "$ref": "#/backend/entities/Lesson"
+          },
+          "description": "Stores lesson information within a chapter.",
+          "params": [
+            {
+              "name": "courseId",
+              "description": "The unique identifier for the course."
+            },
+            {
+              "name": "moduleId",
+              "description": "The unique identifier for the module."
+            },
+            {
+              "name": "chapterId",
+              "description": "The unique identifier for the chapter."
+            },
+            {
+              "name": "lessonId",
+              "description": "The unique identifier for the lesson."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/courses/{courseId}/exams/{examId}",
+        "definition": {
+          "entityName": "Exam",
+          "schema": {
+            "$ref": "#/backend/entities/Exam"
+          },
+          "description": "Stores exam information within a course.",
+          "params": [
+            {
+              "name": "courseId",
+              "description": "The unique identifier for the course."
+            },
+            {
+              "name": "examId",
+              "description": "The unique identifier for the exam."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/courses/{courseId}/exams/{examId}/questions/{questionId}",
+        "definition": {
+          "entityName": "Question",
+          "schema": {
+            "$ref": "#/backend/entities/Question"
+          },
+          "description": "Stores question information within an exam.",
+          "params": [
+            {
+              "name": "courseId",
+              "description": "The unique identifier for the course."
+            },
+            {
+              "name": "examId",
+              "description": "The unique identifier for the exam."
+            },
+            {
+              "name": "questionId",
+              "description": "The unique identifier for the question."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roadmaps/{roadmapId}",
+        "definition": {
+          "entityName": "Roadmap",
+          "schema": {
+            "$ref": "#/backend/entities/Roadmap"
+          },
+          "description": "Stores roadmap information.",
+          "params": [
+            {
+              "name": "roadmapId",
+              "description": "The unique identifier for the roadmap."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/schedules/{scheduleId}",
+        "definition": {
+          "entityName": "Schedule",
+          "schema": {
+            "$ref": "#/backend/entities/Schedule"
+          },
+          "description": "Stores schedule information.",
+          "params": [
+            {
+              "name": "scheduleId",
+              "description": "The unique identifier for the schedule."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/certificates/{certificateId}",
+        "definition": {
+          "entityName": "Certificate",
+          "schema": {
+            "$ref": "#/backend/entities/Certificate"
+          },
+          "description": "Stores certificate information for a user. Path-based ownership simplifies security rules.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "certificateId",
+              "description": "The unique identifier for the certificate."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/community_posts/{postId}",
+        "definition": {
+          "entityName": "CommunityPost",
+          "schema": {
+            "$ref": "#/backend/entities/CommunityPost"
+          },
+          "description": "Stores community post information.",
+          "params": [
+            {
+              "name": "postId",
+              "description": "The unique identifier for the community post."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/tokenTransactions/{transactionId}",
+        "definition": {
+          "entityName": "TokenTransaction",
+          "schema": {
+            "$ref": "#/backend/entities/TokenTransaction"
+          },
+          "description": "Stores token transaction information for a user. Path-based ownership simplifies security rules.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "transactionId",
+              "description": "The unique identifier for the token transaction."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/enrollments/{enrollmentId}",
+        "definition": {
+          "entityName": "Enrollment",
+          "schema": {
+            "$ref": "#/backend/entities/Enrollment"
+          },
+          "description": "Stores enrollment information.  Includes denormalized 'approved' field for authorization independence.",
+          "params": [
+            {
+              "name": "enrollmentId",
+              "description": "The unique identifier for the enrollment."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/audit_logs/{auditLogId}",
+        "definition": {
+          "entityName": "AuditLog",
+          "schema": {
+            "$ref": "#/backend/entities/AuditLog"
+          },
+          "description": "Stores audit log information. Access should be restricted to admins.",
+          "params": [
+            {
+              "name": "auditLogId",
+              "description": "The unique identifier for the audit log."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/competencies/{competencyId}",
+        "definition": {
+          "entityName": "Competency",
+          "schema": {
+            "$ref": "#/backend/entities/Competency"
+          },
+          "description": "Stores competency information.",
+          "params": [
+            {
+              "name": "competencyId",
+              "description": "The unique identifier for the competency."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/course_competencies/{courseCompetencyId}",
+        "definition": {
+          "entityName": "CourseCompetency",
+          "schema": {
+            "$ref": "#/backend/entities/CourseCompetency"
+          },
+          "description": "Stores the mapping between courses and competencies.",
+          "params": [
+            {
+              "name": "courseCompetencyId",
+              "description": "The unique identifier for the course competency mapping."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/question_competencies/{questionCompetencyId}",
+        "definition": {
+          "entityName": "QuestionCompetency",
+          "schema": {
+            "$ref": "#/backend/entities/QuestionCompetency"
+          },
+          "description": "Stores the mapping between questions and competencies.",
+          "params": [
+            {
+              "name": "questionCompetencyId",
+              "description": "The unique identifier for the question competency mapping."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "role",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores admin role information.  Existence of a document indicates admin rights. (DBAC)",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore data structure is designed to support the eXamplify application, focusing on role-based access control, efficient data retrieval, and scalability. It leverages path-based ownership for user-specific data and membership maps for collaborative data, along with denormalization to ensure authorization independence and efficient querying.\n\n**Authorization Independence and QAPs:**\n*   **User Data:** User-specific data like `/users/{userId}/certificates` and `/users/{userId}/tokenTransactions` are stored under the respective user's document. This path-based ownership simplifies security rules and ensures that only the user can access their own data.  List operations are secured using rules that check `request.auth.uid == userId`.\n*   **Course Content:**  Courses, Modules, Chapters, Lessons, Exams, and Questions follow a hierarchical structure `/courses/{courseId}/modules/{moduleId}/chapters/{chapterId}/lessons/{lessonId}` and `/courses/{courseId}/exams/{examId}/questions/{questionId}`. This structure allows for straightforward security rules based on the course instructor. Course documents include the `instructorId` to enforce instructor-level access.  Instructors can manage content within their courses.\n*   **Enrollments:** The `/enrollments/{enrollmentId}` collection stores enrollment data, including `userId` and `courseId`. The `Enrollment` documents include a denormalized `approved` field. Security rules can efficiently validate if an enrollment is approved, enabling instructors/admins to manage access to course content.\n*   **Community Posts:** The `/community_posts/{postId}` collection stores community posts. Each post includes a `userId` field to identify the author. Security rules allow users to create/update their own posts, and admins to manage all posts.\n*   **Roadmaps:** The `/roadmaps/{roadmapId}` collection stores roadmap data.  Consider adding a `ownerId` or `members` map if roadmaps need to be restricted to specific users or groups.\n*   **Audit Logs:**  The `/audit_logs/{auditLogId}` collection stores audit logs. Only admins should have access to this collection. A separate `/roles_admin/{userId}` collection can be used to manage admin roles (DBAC).\n\n**Denormalization:**\n*   The `Course` documents contain `instructorId`, which is denormalized.  This avoids the need for `get()` calls to the `/users/{instructorId}` document to verify the instructor when managing courses or course content (modules, chapters, lessons, exams, questions). This promotes Authorization Independence.\n*   The `Enrollment` documents contain the `approved` field, denormalized to enable simpler security rules around course content access.\n\n**Structural Segregation:**\n*   Private user data is kept under `/users/{userId}`, while community posts are stored in `/community_posts`. This separation simplifies security rules and improves query performance.\n*   Admin roles are managed via `/roles_admin/{userId}`, segregating administrative permissions from regular user data.\n\n**Access Modeling:**\n*   Path-based ownership is used for user-specific resources, like certificates and token transactions.\n*   Membership maps (if needed) can be used to manage access to collaborative resources.\n*   Global roles (DBAC) are managed using dedicated collections, such as `/roles_admin/{userId}`."
+  }
+}
