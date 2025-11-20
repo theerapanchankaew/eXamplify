@@ -51,19 +51,19 @@ export default function AppLayoutClient({
 }>) {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
-  const [isMounted, setIsMounted] = useState(false);
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    setIsMounted(true);
+    setIsClient(true);
   }, []);
 
   useEffect(() => {
-    if (isMounted && !isUserLoading && !user) {
+    if (isClient && !isUserLoading && !user) {
       router.replace('/login');
     }
-  }, [user, isUserLoading, isMounted, router]);
+  }, [user, isUserLoading, isClient, router]);
 
-  if (!isMounted || isUserLoading || !user) {
+  if (!isClient || isUserLoading || !user) {
     return <AppLayoutSkeleton />;
   }
 
