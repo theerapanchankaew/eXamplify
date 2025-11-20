@@ -11,7 +11,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 function AppLayoutSkeleton() {
     return (
       <div className="flex h-screen w-full flex-col">
-        {/* Header Skeleton */}
         <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
           <Skeleton className="h-7 w-7 md:hidden" />
           <Skeleton className="h-6 w-32" />
@@ -22,9 +21,7 @@ function AppLayoutSkeleton() {
             <Skeleton className="h-9 w-9 rounded-full" />
           </div>
         </header>
-        {/* Main Content Skeleton */}
         <div className="flex flex-1">
-          {/* Sidebar Skeleton */}
           <div className="hidden md:flex flex-col gap-2 p-2 border-r" style={{ width: 'var(--sidebar-width)'}}>
             <div className="p-2">
               <Skeleton className="h-8 w-32" />
@@ -38,7 +35,6 @@ function AppLayoutSkeleton() {
               ))}
             </div>
           </div>
-          {/* Page Content Skeleton */}
           <main className="flex-1 p-4 md:p-6 lg:p-8">
             <Skeleton className="h-8 w-48 mb-4" />
             <Skeleton className="h-[400px] w-full" />
