@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -13,9 +13,9 @@ import {
   deleteDoc,
   serverTimestamp,
   collectionGroup,
+  writeBatch,
 } from 'firebase/firestore';
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
-import Image from 'next/image';
 import Link from 'next/link';
 
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -72,8 +72,9 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { MoreVertical, PlusCircle } from 'lucide-react';
+import { Import, MoreVertical, PlusCircle } from 'lucide-react';
 import { useDoc } from '@/firebase/firestore/use-doc';
+import { useRouter } from 'next/navigation';
 
 const examSchema = z.object({
   name: z.string().min(1, 'Exam name is required.'),
@@ -81,12 +82,31 @@ const examSchema = z.object({
   courseId: z.string().min(1, 'You must select a course.'),
 });
 
+const importedExamSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().min(1),
+  questions: z.array(
+    z.object({
+      id: z.string().optional(),
+      type: z.enum(['mcq']),
+      text: z.string().min(1),
+      options: z.array(z.string()).min(2),
+      answer: z.string().min(1),
+      points: z.number().positive(),
+    })
+  ),
+});
+
+
 type ExamFormData = z.infer<typeof examSchema>;
 
 export default function ExamsPage() {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
 
   const userDocRef = useMemoFirebase(
     () => (firestore && user ? doc(firestore, 'users', user.uid) : null),
@@ -190,6 +210,94 @@ export default function ExamsPage() {
       setDeleteDialogOpen(false);
     }
   };
+
+  const handleImportClick = () => {
+    if (userOwnedCourses.length === 0) {
+        toast({
+            variant: 'destructive',
+            title: 'No Courses Available',
+            description: 'You must own at least one course to import an exam. Please create a course first.',
+        });
+        return;
+    }
+    fileInputRef.current?.click();
+  };
+
+  const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!firestore || !user || userOwnedCourses.length === 0) return;
+    const file = event.target.files?.[0];
+    if (!file) return;
+  
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const content = e.target?.result;
+        if (typeof content !== 'string') throw new Error('Failed to read file content.');
+        
+        const parsedJson = JSON.parse(content);
+        const validatedExam = importedExamSchema.parse(parsedJson);
+  
+        // For simplicity, we'll assign the imported exam to the user's first owned course.
+        // A better UX would be to ask the user to select a course.
+        const targetCourseId = userOwnedCourses[0].id;
+  
+        const batch = writeBatch(firestore);
+        
+        // 1. Create the new exam document
+        const examsColRef = collection(firestore, 'courses', targetCourseId, 'exams');
+        const newExamRef = doc(examsColRef);
+        batch.set(newExamRef, {
+          name: validatedExam.title,
+          description: validatedExam.description,
+          courseId: targetCourseId,
+          createdAt: serverTimestamp(),
+        });
+  
+        // 2. Create all the question documents within the new exam
+        const questionsColRef = collection(newExamRef, 'questions');
+        validatedExam.questions.forEach(q => {
+          const newQuestionRef = doc(questionsColRef);
+          batch.set(newQuestionRef, {
+            text: q.text,
+            type: 'Multiple Choice', // Convert from 'mcq'
+            options: q.options,
+            answer: q.answer,
+            points: q.points,
+            examId: newExamRef.id,
+            createdAt: serverTimestamp(),
+          });
+        });
+  
+        await batch.commit();
+        
+        toast({
+          title: 'Import Successful',
+          description: `Exam "${validatedExam.title}" with ${validatedExam.questions.length} questions has been imported.`,
+        });
+
+        // Optional: Redirect user to the newly created exam page
+        router.push(`/exams/${newExamRef.id}?courseId=${targetCourseId}`);
+  
+      } catch (error: any) {
+        let description = 'An unknown error occurred.';
+        if (error instanceof z.ZodError) {
+          description = 'JSON format is invalid. Please check the file structure and content.';
+        } else if (error instanceof SyntaxError) {
+          description = 'Invalid JSON file. Please ensure the file is correctly formatted.';
+        } else {
+          description = error.message;
+        }
+        toast({
+          variant: 'destructive',
+          title: 'Import Failed',
+          description: description,
+        });
+      } finally {
+        if(fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsText(file);
+  };
   
   const canManageExams = userProfile?.role === 'Admin' || userProfile?.role === 'Instructor';
 
@@ -203,10 +311,23 @@ export default function ExamsPage() {
           </p>
         </div>
         {canManageExams && (
-          <Button onClick={handleAddExam}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Create Exam
-          </Button>
+          <div className="flex items-center gap-2">
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileImport}
+                accept=".json"
+                className="hidden"
+            />
+            <Button variant="outline" onClick={handleImportClick}>
+                <Import className="mr-2 h-4 w-4" />
+                Import Exam
+            </Button>
+            <Button onClick={handleAddExam}>
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Create Exam
+            </Button>
+          </div>
         )}
       </div>
 
@@ -278,13 +399,19 @@ export default function ExamsPage() {
         <div className="text-center py-16 border-2 border-dashed rounded-lg">
             <h2 className="text-xl font-semibold">No Exams Found</h2>
             <p className="text-muted-foreground mt-2">
-              Get started by creating a new exam.
+              Get started by creating a new exam or importing from JSON.
             </p>
             {canManageExams && (
-                 <Button onClick={handleAddExam} className="mt-4">
+              <div className="flex justify-center gap-4 mt-4">
+                 <Button variant="outline" onClick={handleImportClick}>
+                    <Import className="mr-2 h-4 w-4" />
+                    Import Exam
+                </Button>
+                 <Button onClick={handleAddExam}>
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Create Your First Exam
                 </Button>
+              </div>
             )}
         </div>
       )}

@@ -201,14 +201,31 @@
         },
         "type": {
           "type": "string",
-          "description": "The type of question (e.g., multiple choice, true/false)."
+          "description": "The type of question (e.g., Multiple Choice, True/False)."
+        },
+        "options": {
+          "type": "array",
+          "description": "An array of possible answers for multiple-choice questions.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "answer": {
+          "type": "string",
+          "description": "The correct answer to the question."
+        },
+        "points": {
+          "type": "number",
+          "description": "The number of points the question is worth."
         }
       },
       "required": [
         "id",
         "examId",
         "text",
-        "type"
+        "type",
+        "answer",
+        "points"
       ]
     },
     "Roadmap": {
