@@ -12,6 +12,7 @@ import {
   MessageSquare,
   Settings,
   User,
+  CreditCard,
 } from 'lucide-react';
 
 export const menuItems: NavItem[] = [
@@ -69,6 +70,11 @@ export const menuItems: NavItem[] = [
     label: 'Community',
     href: '/community',
     icon: MessageSquare,
+  },
+  {
+    label: 'Billing',
+    href: '/billing',
+    icon: CreditCard,
   },
 ];
 
