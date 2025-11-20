@@ -68,16 +68,27 @@ import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, doc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
+import { getAuth, createUserWithEmailAndPassword, deleteUser } from 'firebase/auth';
+
 
 const userSchema = z.object({
   username: z.string().min(1, 'Username is required'),
   role: z.enum(['Admin', 'Instructor', 'Student']),
 });
 
+const newUserSchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(6, 'Password must be at least 6 characters'),
+    role: z.enum(['Admin', 'Instructor', 'Student']),
+});
+
 type UserFormData = z.infer<typeof userSchema>;
+type NewUserFormData = z.infer<typeof newUserSchema>;
+
 
 export default function UsersPage() {
   const firestore = useFirestore();
+  const auth = getAuth();
   const { toast } = useToast();
 
   const usersCollectionQuery = useMemoFirebase(
@@ -89,10 +100,20 @@ export default function UsersPage() {
 
   const [isEditDialogOpen, setEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [isAddUserDialogOpen, setAddUserDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
 
   const form = useForm<UserFormData>({
     resolver: zodResolver(userSchema),
+  });
+
+  const newUserForm = useForm<NewUserFormData>({
+      resolver: zodResolver(newUserSchema),
+      defaultValues: {
+          email: '',
+          password: '',
+          role: 'Student',
+      },
   });
 
   const handleEditClick = (user: any) => {
@@ -116,15 +137,11 @@ export default function UsersPage() {
     const adminRoleRef = doc(firestore, 'roles_admin', selectedUser.id);
 
     try {
-      // Update the main user document
       await updateDoc(userDocRef, data);
 
-      // Handle the admin role based on the new role
       if (data.role === 'Admin') {
-        // If role is changed to Admin, ensure the role document exists
         await setDoc(adminRoleRef, { role: 'admin' });
       } else if (selectedUser.role === 'Admin' && data.role !== 'Admin') {
-        // If role is changed from Admin to something else, delete the role document
         await deleteDoc(adminRoleRef);
       }
 
@@ -143,13 +160,63 @@ export default function UsersPage() {
     }
   };
 
+  const handleCreateUser = async (data: NewUserFormData) => {
+      if (!firestore) return;
+      
+      // This is a temporary solution for creating users. 
+      // In a real app, you'd use a backend function to create users.
+      try {
+          // Temporarily sign out the admin to create a new user
+          const adminUser = auth.currentUser;
+          await auth.signOut();
+
+          const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+          const newUser = userCredential.user;
+
+          const userDocRef = doc(firestore, 'users', newUser.uid);
+          await setDoc(userDocRef, {
+              id: newUser.uid,
+              email: data.email,
+              role: data.role,
+              username: data.email.split('@')[0],
+          });
+
+          if (data.role === 'Admin') {
+              const adminRoleRef = doc(firestore, 'roles_admin', newUser.uid);
+              await setDoc(adminRoleRef, { role: 'admin' });
+          }
+
+          toast({
+              title: 'User Created',
+              description: `User ${data.email} has been created.`,
+          });
+          
+          // Sign back in as admin - this is simplistic and has issues
+          // A proper solution requires a backend.
+          if(adminUser) {
+            // This part is problematic as it requires credentials.
+            // For now, we'll just log that the admin needs to log back in.
+            console.log("Admin needs to log back in manually.");
+          }
+
+          setAddUserDialogOpen(false);
+          newUserForm.reset();
+
+      } catch (error: any) {
+          toast({
+              variant: 'destructive',
+              title: 'Create User Failed',
+              description: error.message,
+          });
+      }
+  };
+
   const handleDeleteUser = async () => {
     if (!firestore || !selectedUser) return;
     const userDocRef = doc(firestore, 'users', selectedUser.id);
     try {
       await deleteDoc(userDocRef);
 
-      // Also delete from roles_admin if the user is an admin
       if (selectedUser.role === 'Admin') {
         const adminRoleRef = doc(firestore, 'roles_admin', selectedUser.id);
         await deleteDoc(adminRoleRef);
@@ -157,7 +224,7 @@ export default function UsersPage() {
       
       toast({
         title: 'User Deleted',
-        description: `User ${selectedUser.email} has been deleted.`,
+        description: `User ${selectedUser.email} has been deleted from Firestore. Note: This does not remove the user from Firebase Authentication.`,
       });
     } catch (error: any) {
       toast({
@@ -174,11 +241,14 @@ export default function UsersPage() {
   return (
     <>
       <Card>
-        <CardHeader>
-          <CardTitle>Users</CardTitle>
-          <CardDescription>
-            Manage your users and view their activity.
-          </CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+                <CardTitle>Users</CardTitle>
+                <CardDescription>
+                    Manage your users and view their activity.
+                </CardDescription>
+            </div>
+            <Button onClick={() => setAddUserDialogOpen(true)}>Add User</Button>
         </CardHeader>
         <CardContent>
           <Table>
@@ -280,6 +350,74 @@ export default function UsersPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={isAddUserDialogOpen} onOpenChange={setAddUserDialogOpen}>
+          <DialogContent>
+              <DialogHeader>
+                  <DialogTitle>Add New User</DialogTitle>
+                  <DialogDescription>
+                      Create a new user account. An email and a temporary password are required.
+                  </DialogDescription>
+              </DialogHeader>
+              <Form {...newUserForm}>
+                  <form onSubmit={newUserForm.handleSubmit(handleCreateUser)} className="space-y-4">
+                      <FormField
+                          control={newUserForm.control}
+                          name="email"
+                          render={({ field }) => (
+                              <FormItem>
+                                  <FormLabel>Email</FormLabel>
+                                  <FormControl>
+                                      <Input placeholder="user@example.com" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                              </FormItem>
+                          )}
+                      />
+                      <FormField
+                          control={newUserForm.control}
+                          name="password"
+                          render={({ field }) => (
+                              <FormItem>
+                                  <FormLabel>Password</FormLabel>
+                                  <FormControl>
+                                      <Input type="password" placeholder="••••••••" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                              </FormItem>
+                          )}
+                      />
+                      <FormField
+                          control={newUserForm.control}
+                          name="role"
+                          render={({ field }) => (
+                              <FormItem>
+                                  <FormLabel>Role</FormLabel>
+                                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                      <FormControl>
+                                          <SelectTrigger>
+                                              <SelectValue placeholder="Select a role" />
+                                          </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                          <SelectItem value="Admin">Admin</SelectItem>
+                                          <SelectItem value="Instructor">Instructor</SelectItem>
+                                          <SelectItem value="Student">Student</SelectItem>
+                                      </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                              </FormItem>
+                          )}
+                      />
+                      <DialogFooter>
+                          <Button type="button" variant="outline" onClick={() => setAddUserDialogOpen(false)}>Cancel</Button>
+                          <Button type="submit">Create User</Button>
+                      </DialogFooter>
+                  </form>
+              </Form>
+          </DialogContent>
+      </Dialog>
+
 
       <Dialog open={isEditDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
