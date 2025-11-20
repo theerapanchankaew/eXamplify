@@ -78,7 +78,7 @@ export default function LoginPage() {
       );
       const newUser = userCredential.user;
 
-      const isAdmin = values.email === 'admin@masci.com';
+      const isAdmin = values.email.toLowerCase() === 'admin@masci.com';
       const userRole = isAdmin ? 'Admin' : 'Student';
 
       // Create user document in Firestore
