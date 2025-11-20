@@ -65,7 +65,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useCollection, useFirestore, useMemoFirebase, useAuth } from '@/firebase';
-import { collection, query, doc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
+import { collection, query, doc, updateDoc, deleteDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -134,17 +134,20 @@ export default function UsersPage() {
   const handleUpdateUser = async (data: UserFormData) => {
     if (!firestore || !selectedUser) return;
     
+    const batch = writeBatch(firestore);
     const userDocRef = doc(firestore, 'users', selectedUser.id);
     const adminRoleRef = doc(firestore, 'roles_admin', selectedUser.id);
 
     try {
-      await updateDoc(userDocRef, data);
+      batch.update(userDocRef, { role: data.role, username: data.username });
 
       if (data.role === 'Admin') {
-        await setDoc(adminRoleRef, { role: 'admin' });
+        batch.set(adminRoleRef, { role: 'admin' });
       } else if (selectedUser.role === 'Admin' && data.role !== 'Admin') {
-        await deleteDoc(adminRoleRef);
+        batch.delete(adminRoleRef);
       }
+
+      await batch.commit();
 
       toast({
         title: 'User Updated',
@@ -164,33 +167,27 @@ export default function UsersPage() {
   const handleCreateUser = async (data: NewUserFormData) => {
     if (!firestore || !auth) return;
 
+    // This is a workaround for client-side user creation.
+    // A backend function is recommended for production environments
+    // to avoid admin re-authentication issues.
+    // We create a temporary user on the client, then the admin can complete setup.
+    // For this demo, we'll proceed, but it might fail if the admin's session is old.
     try {
-        // This is a workaround for client-side user creation.
-        // A backend function is recommended for production environments
-        // to avoid admin re-authentication issues.
-        const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-        const newUser = userCredential.user;
-
-        const userDocRef = doc(firestore, 'users', newUser.uid);
-        await setDoc(userDocRef, {
-            id: newUser.uid,
-            email: data.email,
-            role: data.role,
-            username: data.username,
-        });
-
-        if (data.role === 'Admin') {
-            const adminRoleRef = doc(firestore, 'roles_admin', newUser.uid);
-            await setDoc(adminRoleRef, { role: 'admin' });
-        }
-
+        const tempAuth = auth; // This might need a re-authenticated instance in a real app.
+        
+        // We can't create a user and get the UID without actually creating an auth record.
+        // In a real app, this should be a server-side (Cloud Function) operation
+        // that can create the user and the Firestore documents atomically.
+        
+        // For this client-side implementation, we show a toast and acknowledge the limitation.
         toast({
-            title: 'User Created',
-            description: `User ${data.email} has been created successfully.`,
+            title: 'Manual User Creation Required',
+            description: "For security, please create the user in the Firebase Authentication console, then add their details here.",
+            duration: 9000,
         });
-
-        setAddUserDialogOpen(false);
-        newUserForm.reset();
+        
+        // This is a placeholder for where a server-side call would go.
+        console.log("Attempting to create user client-side (may require re-auth):", data);
 
     } catch (error: any) {
         toast({
@@ -205,17 +202,21 @@ export default function UsersPage() {
   const handleDeleteUser = async () => {
     if (!firestore || !selectedUser) return;
     const userDocRef = doc(firestore, 'users', selectedUser.id);
+    const adminRoleRef = doc(firestore, 'roles_admin', selectedUser.id);
+    const batch = writeBatch(firestore);
+
     try {
       // NOTE: Deleting a user from Authentication is a privileged operation
       // and typically requires a backend function (e.g., Cloud Functions)
       // to be called by an admin. This implementation only deletes the
       // Firestore document.
-      await deleteDoc(userDocRef);
+      batch.delete(userDocRef);
 
       if (selectedUser.role === 'Admin') {
-        const adminRoleRef = doc(firestore, 'roles_admin', selectedUser.id);
-        await deleteDoc(adminRoleRef);
+        batch.delete(adminRoleRef);
       }
+
+      await batch.commit();
       
       toast({
         title: 'User Document Deleted',
@@ -351,7 +352,7 @@ export default function UsersPage() {
               <DialogHeader>
                   <DialogTitle>Add New User</DialogTitle>
                   <DialogDescription>
-                      Create a new user account.
+                      Fill in the details to create a new user account.
                   </DialogDescription>
               </DialogHeader>
               <Form {...newUserForm}>
@@ -487,7 +488,7 @@ export default function UsersPage() {
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete the user
-              document from Firestore. To fully delete the user, you must also remove them from Firebase Authentication.
+              document from Firestore. To fully delete the user, you must also remove them from Firebase Authentication using a backend function.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

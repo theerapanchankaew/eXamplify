@@ -78,7 +78,7 @@ service cloud.firestore {
      * @principle Restricts permission management to other administrators (DBAC).
      */
     match /roles_admin/{userId} {
-      allow get, list, create, update, delete: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
     /**
@@ -107,7 +107,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isSignedIn();
-      allow create: if isOwner(userId) && hasValidUserCreateData(userId);
+      allow create: if isOwner(userId) && hasValidUserCreateData(userId) || isAdmin();
       allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
     }
