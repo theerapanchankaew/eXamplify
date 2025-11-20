@@ -201,6 +201,7 @@ export default function ProfilePage() {
                         <div className="space-y-2">
                            <Skeleton className="h-6 w-40" />
                            <Skeleton className="h-4 w-60" />
+                           <Skeleton className="h-5 w-20" />
                         </div>
                     </div>
                     <div className="space-y-2">
