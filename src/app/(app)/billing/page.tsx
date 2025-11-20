@@ -97,11 +97,11 @@ export default function BillingPage() {
       }
       // Regular user sees only their own transactions
       return query(
-        collection(firestore, 'users', user!.uid, 'tokenTransactions'),
+        collection(firestore, 'users', userProfile.id, 'tokenTransactions'),
         orderBy('timestamp', 'desc')
       );
     },
-    [firestore, user, userProfile]
+    [firestore, userProfile]
   );
 
   const { data: transactions, isLoading: isLoadingTransactions } = useCollection(transactionsQuery);
