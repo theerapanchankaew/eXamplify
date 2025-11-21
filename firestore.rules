@@ -277,8 +277,7 @@ service cloud.firestore {
      */
     match /enrollments/{enrollmentId} {
       allow get: if isSignedIn() && (isOwner(resource.data.userId) || isCourseInstructor(resource.data.courseId) || isAdmin());
-      // Admins and Instructors can list all enrollments. Students can only list their own.
-      allow list: if isSignedIn() && (isAdmin() || isInstructor() || request.query.where.field == 'userId' && request.query.where.value == request.auth.uid);
+      allow list: if isSignedIn() && (isAdmin() || isInstructor() || (request.query.get('where') != null && request.query.where.field == 'userId' && request.query.where.value == request.auth.uid));
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update: if isCourseInstructor(resource.data.courseId) || isAdmin();
       allow delete: if isOwner(resource.data.userId) || isCourseInstructor(resource.data.courseId) || isAdmin();
