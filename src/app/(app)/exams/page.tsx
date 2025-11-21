@@ -155,28 +155,38 @@ export default function ExamsPage() {
     setIsLoading(true);
 
     const fetchExamsAndCounts = async () => {
-        const examsGroupQuery = query(collectionGroup(firestore, 'exams'));
-        const querySnapshot = await getDocs(examsGroupQuery);
-        
-        const examsData = await Promise.all(
-            querySnapshot.docs.map(async (examDoc) => {
-                const questionsColRef = collection(examDoc.ref, 'questions');
-                const questionsSnapshot = await getDocs(questionsColRef);
-                return {
-                    ...examDoc.data(),
-                    id: examDoc.id,
-                    courseId: examDoc.data().courseId,
-                    questionCount: questionsSnapshot.size,
-                } as ExamWithQuestionCount;
+        try {
+            const examsGroupQuery = query(collectionGroup(firestore, 'exams'));
+            const querySnapshot = await getDocs(examsGroupQuery);
+            
+            const examsData = await Promise.all(
+                querySnapshot.docs.map(async (examDoc) => {
+                    const questionsColRef = collection(examDoc.ref, 'questions');
+                    const questionsSnapshot = await getDocs(questionsColRef);
+                    return {
+                        ...examDoc.data(),
+                        id: examDoc.id,
+                        courseId: examDoc.data().courseId,
+                        questionCount: questionsSnapshot.size,
+                    } as ExamWithQuestionCount;
+                })
+            );
+            setExamsWithCounts(examsData);
+        } catch (error) {
+            console.error("Failed to fetch exams:", error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Could not fetch exams. You may not have the required permissions."
             })
-        );
-        setExamsWithCounts(examsData);
-        setIsLoading(false);
+        } finally {
+             setIsLoading(false);
+        }
     };
 
     fetchExamsAndCounts();
 
-  }, [firestore]);
+  }, [firestore, toast]);
 
 
   const form = useForm<ExamFormData>({
