@@ -78,15 +78,18 @@ const SidebarProvider = React.forwardRef<
     
     // On mount, read the cookie to set the initial state.
     React.useEffect(() => {
-        const cookieValue = document.cookie
-            .split("; ")
-            .find((row) => row.startsWith(`${SIDEBAR_COOKIE_NAME}=`))
-            ?.split("=")[1];
-
-        if (cookieValue !== undefined) {
-            _setOpen(cookieValue === 'true');
-        }
         setIsMobile(isMobileFromHook);
+
+        if (!isMobileFromHook) {
+          const cookieValue = document.cookie
+              .split("; ")
+              .find((row) => row.startsWith(`${SIDEBAR_COOKIE_NAME}=`))
+              ?.split("=")[1];
+
+          if (cookieValue !== undefined) {
+              _setOpen(cookieValue === 'true');
+          }
+        }
     }, [isMobileFromHook]);
 
     const setOpen = React.useCallback(
@@ -776,3 +779,5 @@ export {
   SidebarTrigger,
   useSidebar,
 }
+
+    
