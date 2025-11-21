@@ -50,7 +50,7 @@ import {
 } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { CreditCard, Wallet } from 'lucide-react';
+import { CreditCard, Wallet, Ticket } from 'lucide-react';
 import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
@@ -66,7 +66,13 @@ const topUpSchema = z.object({
   userId: z.string().min(1, "Please select a user."),
 });
 
+const redeemCodeSchema = z.object({
+  code: z.string().min(6, 'Activation code is required.'),
+});
+
+
 type TopUpFormData = z.infer<typeof topUpSchema>;
+type RedeemCodeFormData = z.infer<typeof redeemCodeSchema>;
 
 export default function BillingPage() {
   const { user } = useUser();
@@ -116,11 +122,18 @@ export default function BillingPage() {
       .reduce((sum, t) => sum + (t.amount || 0), 0);
   }, [transactions, user]);
   
-  const form = useForm<TopUpFormData>({
+  const topUpForm = useForm<TopUpFormData>({
     resolver: zodResolver(topUpSchema),
     defaultValues: {
       amount: undefined,
       userId: undefined,
+    },
+  });
+
+  const redeemCodeForm = useForm<RedeemCodeFormData>({
+    resolver: zodResolver(redeemCodeSchema),
+    defaultValues: {
+      code: '',
     },
   });
 
@@ -155,13 +168,60 @@ export default function BillingPage() {
         title: 'Success',
         description: `${amount} tokens have been added to ${toppedUpUser?.username || 'the user'}'s wallet.`,
       });
-      form.reset();
+      topUpForm.reset();
     } catch (error: any) {
       toast({
         variant: 'destructive',
         title: 'Top-up Failed',
         description: error.message,
       });
+    }
+  };
+
+  const handleRedeemCode = async (data: RedeemCodeFormData) => {
+    // Placeholder logic for redeeming a code.
+    // In a real application, this would involve a backend call
+    // to validate the code and then credit the user's account.
+    console.log('Redeeming code:', data.code);
+    
+    // Simulate API call
+    redeemCodeForm.formState.isSubmitting;
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    if (data.code.toUpperCase() === 'FREE1000') {
+        if (!firestore || !user) return;
+        try {
+            const transactionsColRef = collection(
+                firestore,
+                'users',
+                user.uid,
+                'tokenTransactions'
+            );
+            await addDoc(transactionsColRef, {
+                userId: user.uid,
+                amount: 1000,
+                transactionType: 'reward',
+                timestamp: serverTimestamp(),
+                description: `Redeemed activation code: ${data.code}`,
+            });
+            toast({
+                title: 'Code Redeemed!',
+                description: '1,000 tokens have been added to your wallet.',
+            });
+            redeemCodeForm.reset();
+        } catch (error: any) {
+            toast({
+                variant: 'destructive',
+                title: 'Redemption Failed',
+                description: error.message,
+            });
+        }
+    } else {
+        toast({
+            variant: 'destructive',
+            title: 'Invalid Code',
+            description: 'The activation code you entered is not valid.',
+        });
     }
   };
   
@@ -225,6 +285,41 @@ export default function BillingPage() {
           </CardContent>
         </Card>
 
+        { userProfile?.role !== 'Admin' && (
+             <Card className="lg:col-span-2">
+                <CardHeader>
+                    <CardTitle>Redeem Activation Code</CardTitle>
+                    <CardDescription>
+                    Enter an activation code to add tokens to your wallet.
+                    </CardDescription>
+                </CardHeader>
+                <Form {...redeemCodeForm}>
+                    <form onSubmit={redeemCodeForm.handleSubmit(handleRedeemCode)}>
+                        <CardContent>
+                            <FormField
+                                control={redeemCodeForm.control}
+                                name="code"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Activation Code</FormLabel>
+                                        <FormControl>
+                                            <Input placeholder="Enter your code" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </CardContent>
+                        <CardFooter>
+                            <Button type="submit" disabled={redeemCodeForm.formState.isSubmitting}>
+                                <Ticket className="mr-2 h-4 w-4" /> Redeem Code
+                            </Button>
+                        </CardFooter>
+                    </form>
+                </Form>
+             </Card>
+        )}
+
         { isLoading ? (
             <Card className="lg:col-span-2">
                 <CardHeader>
@@ -247,11 +342,11 @@ export default function BillingPage() {
                 Add tokens to a user's wallet. 1 Token = 0.01 THB.
                 </CardDescription>
             </CardHeader>
-            <Form {...form}>
-                <form onSubmit={form.handleSubmit(handleTopUp)}>
+            <Form {...topUpForm}>
+                <form onSubmit={topUpForm.handleSubmit(handleTopUp)}>
                 <CardContent className="space-y-4">
                      <FormField
-                      control={form.control}
+                      control={topUpForm.control}
                       name="userId"
                       render={({ field }) => (
                         <FormItem>
@@ -273,7 +368,7 @@ export default function BillingPage() {
                       )}
                     />
                     <FormField
-                    control={form.control}
+                    control={topUpForm.control}
                     name="amount"
                     render={({ field }) => (
                         <FormItem>
@@ -295,7 +390,7 @@ export default function BillingPage() {
                     />
                 </CardContent>
                 <CardFooter>
-                    <Button type="submit" disabled={form.formState.isSubmitting}>
+                    <Button type="submit" disabled={topUpForm.formState.isSubmitting}>
                     <CreditCard className="mr-2 h-4 w-4" /> Top-up Tokens
                     </Button>
                 </CardFooter>
