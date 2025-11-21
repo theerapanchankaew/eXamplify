@@ -106,7 +106,8 @@ export default function CoursesPage() {
   const { data: enrollments, isLoading: isLoadingEnrollments } = useCollection(enrollmentsQuery);
   
   const enrolledCourseIds = useMemo(() => {
-    return new Set(enrollments?.map(e => e.courseId));
+    if (!enrollments) return new Set();
+    return new Set(enrollments.map(e => e.courseId));
   }, [enrollments]);
 
 
@@ -241,6 +242,7 @@ export default function CoursesPage() {
   };
   
   const canManageCourses = userProfile?.role === 'Admin' || userProfile?.role === 'Instructor';
+  const isStudent = userProfile?.role === 'Student';
 
   return (
     <div className="w-full">
@@ -302,7 +304,7 @@ export default function CoursesPage() {
                   </CardDescription>
                 </CardContent>
                 <CardFooter className="p-4 flex justify-between items-center">
-                   {userProfile?.role === 'Student' ? (
+                   {isStudent ? (
                       isEnrolled ? (
                           <Button asChild className="w-full">
                               <Link href={`/courses/${course.id}`}>View Course</Link>
@@ -455,11 +457,3 @@ export default function CoursesPage() {
     </div>
   );
 }
-
-    
-
-    
-
-    
-
-    
