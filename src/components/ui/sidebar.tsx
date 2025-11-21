@@ -76,9 +76,11 @@ const SidebarProvider = React.forwardRef<
     
     React.useEffect(() => {
         setIsMobile(isMobileFromHook);
+    }, [isMobileFromHook]);
 
-        if (!isMobileFromHook) {
-          const cookieValue = document.cookie
+    React.useEffect(() => {
+        if (!isMobile) {
+            const cookieValue = document.cookie
               .split("; ")
               .find((row) => row.startsWith(`${SIDEBAR_COOKIE_NAME}=`))
               ?.split("=")[1];
@@ -87,7 +89,7 @@ const SidebarProvider = React.forwardRef<
               _setOpen(cookieValue === 'true');
           }
         }
-    }, [isMobileFromHook]);
+    }, [isMobile]);
 
     const setOpen = React.useCallback(
       (value: boolean | ((value: boolean) => boolean)) => {
