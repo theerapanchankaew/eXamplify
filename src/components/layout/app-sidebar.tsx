@@ -9,6 +9,9 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarSeparator,
+  SidebarGroup,
+  SidebarGroupLabel,
 } from '@/components/ui/sidebar';
 import { getMenuItems, settingsItem } from '@/lib/menu-items';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
@@ -75,7 +78,7 @@ export function AppSidebar() {
   );
   const { data: userProfile } = useDoc(userDocRef);
 
-  const menuItems = getMenuItems(userProfile?.role);
+  const menuCategories = getMenuItems(userProfile?.role);
 
   return (
     <Sidebar collapsible="icon">
@@ -85,23 +88,32 @@ export function AppSidebar() {
         </Link>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarMenu>
-          {menuItems.map((item) => (
-            <SidebarMenuItem key={item.href}>
-              <SidebarMenuButton
-                asChild
-                isActive={pathname.startsWith(item.href)}
-                tooltip={{ children: item.label, side: 'right' }}
-              >
-                <Link href={item.href}>
-                  <item.icon />
-                  <span>{item.label}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
-        <SidebarMenu className="mt-auto">
+        {menuCategories.map((category, index) => (
+            <SidebarGroup key={category.label}>
+                {index > 0 && <SidebarSeparator />}
+                <SidebarGroupLabel>{category.label}</SidebarGroupLabel>
+                <SidebarMenu>
+                {category.items.map((item) => (
+                    <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton
+                        asChild
+                        isActive={pathname.startsWith(item.href)}
+                        tooltip={{ children: item.label, side: 'right' }}
+                    >
+                        <Link href={item.href}>
+                        <item.icon />
+                        <span>{item.label}</span>
+                        </Link>
+                    </SidebarMenuButton>
+                    </SidebarMenuItem>
+                ))}
+                </SidebarMenu>
+            </SidebarGroup>
+        ))}
+      </SidebarContent>
+      <SidebarContent className="mt-auto">
+         <SidebarSeparator />
+         <SidebarMenu className="py-2">
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild

@@ -17,16 +17,28 @@ export function PageTitle() {
   );
   const { data: userProfile } = useDoc(userDocRef);
 
-  const menuItems = getMenuItems(userProfile?.role);
+  const menuCategories = getMenuItems(userProfile?.role);
 
-  let title = 'Dashboard'; // Default title
-  if (pathname === '/settings') {
+  let title = '';
+
+  if (pathname === settingsItem.href) {
     title = settingsItem.label;
   } else if (userProfile) {
-    const currentItem = menuItems.find(item => item.href !== '/dashboard' && pathname.startsWith(item.href));
+    // Flatten all items from all categories and find the matching one
+    const allItems = menuCategories.flatMap(category => category.items);
+    // Find the item whose href is the most specific match for the current pathname.
+    const currentItem = allItems
+      .filter(item => pathname.startsWith(item.href))
+      .sort((a, b) => b.href.length - a.href.length)[0];
+
     if (currentItem) {
       title = currentItem.label;
     }
+  }
+
+  // Default to Dashboard if no specific title is found and we are at the root
+  if (!title && pathname.includes('/dashboard')) {
+      title = 'Dashboard';
   }
 
 
