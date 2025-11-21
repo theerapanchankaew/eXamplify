@@ -66,8 +66,6 @@ export default function AppLayoutClient({
   }
 
   if (!user) {
-    // Return null or a minimal loading state while redirecting
-    // to avoid rendering the full layout before the redirect happens.
     return null;
   }
 
