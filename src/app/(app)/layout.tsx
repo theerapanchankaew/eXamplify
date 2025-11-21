@@ -5,13 +5,16 @@ import { AppSidebar } from '@/components/layout/app-sidebar';
 import { AppHeader } from '@/components/layout/app-header';
 import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 function AppLayoutSkeleton() {
   return (
-    <div className="flex min-h-screen w-full">
-      {/* Static Skeleton Sidebar */}
+    <div 
+      className="flex min-h-screen w-full"
+      suppressHydrationWarning // Add this line to suppress warnings from extension interference
+    >
+      {/* Skeleton sidebar - matches the actual sidebar structure */}
       <div className="hidden border-r bg-background md:flex md:w-64 md:flex-col">
         <div className="flex h-full flex-col gap-2 p-4">
           <div className="mb-8 flex items-center gap-2.5">
@@ -28,8 +31,9 @@ function AppLayoutSkeleton() {
           </div>
         </div>
       </div>
+      
+      {/* Main content area - matches the actual layout structure */}
       <div className="flex flex-1 flex-col">
-        {/* Static Skeleton Header */}
         <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
           <Skeleton className="h-7 w-7 md:hidden" />
           <Skeleton className="h-6 w-32" />
@@ -38,7 +42,6 @@ function AppLayoutSkeleton() {
             <Skeleton className="h-9 w-9 rounded-full" />
           </div>
         </header>
-        {/* Static Skeleton Content */}
         <main className="flex-1 p-4 md:p-6 lg:p-8">
           <Skeleton className="h-96 w-full" />
         </main>
@@ -54,21 +57,31 @@ export default function AppLayoutClient({
 }>) {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
+  const [isClient, setIsClient] = useState(false);
+
+  // This ensures we only run client-side logic after hydration
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
-    if (!isUserLoading && !user) {
+    // Only run redirect logic on the client, after initial render, and when loading is complete.
+    if (isClient && !isUserLoading && !user) {
       router.replace('/login');
     }
-  }, [user, isUserLoading, router]);
+  }, [isClient, user, isUserLoading, router]);
 
-  if (isUserLoading) {
+  // On the server and during initial client render/hydration, show the skeleton.
+  if (!isClient || isUserLoading) {
     return <AppLayoutSkeleton />;
   }
 
+  // After hydration, if there's no user, keep showing the skeleton while redirecting.
   if (!user) {
-    return null; // Return null while waiting for the redirect to happen
+    return <AppLayoutSkeleton />;
   }
-
+  
+  // Actual layout for authenticated users, rendered only on the client after auth check.
   return (
     <SidebarProvider>
       <AppSidebar />
