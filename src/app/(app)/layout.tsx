@@ -61,8 +61,14 @@ export default function AppLayoutClient({
     }
   }, [user, isUserLoading, router]);
 
-  if (isUserLoading || !user) {
+  if (isUserLoading) {
     return <AppLayoutSkeleton />;
+  }
+
+  if (!user) {
+    // Return null or a minimal loading state while redirecting
+    // to avoid rendering the full layout before the redirect happens.
+    return null;
   }
 
   return (
