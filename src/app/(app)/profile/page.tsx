@@ -85,37 +85,6 @@ export default function ProfilePage() {
     }
   }, [userProfile, form]);
 
-  const handleUpdateProfile = async (data: ProfileFormData) => {
-    if (!user || !firestore || !auth.currentUser) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'User not found or service unavailable.',
-      });
-      return;
-    }
-
-    try {
-      const userDocRef = doc(firestore, 'users', user.uid);
-      await updateDoc(userDocRef, { username: data.username });
-
-      // Only update displayName in auth, not photoURL as it's too long
-      await updateProfile(auth.currentUser, { displayName: data.username });
-
-
-      toast({
-        title: 'Profile Updated',
-        description: 'Your username has been updated successfully.',
-      });
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Update Failed',
-        description: error.message,
-      });
-    }
-  };
-
   const handleDialogOpenChange = async (open: boolean) => {
     setWebcamDialogOpen(open);
     if (open) {
@@ -320,7 +289,34 @@ export default function ProfilePage() {
 
           <Form {...form}>
             <form
-              onSubmit={form.handleSubmit(handleUpdateProfile)}
+              onSubmit={form.handleSubmit(async (data) => {
+                if (!user || !firestore || !auth.currentUser) {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Error',
+                    description: 'User not found or service unavailable.',
+                  });
+                  return;
+                }
+
+                try {
+                  const userDocRef = doc(firestore, 'users', user.uid);
+                  await updateDoc(userDocRef, { username: data.username });
+
+                  await updateProfile(auth.currentUser, { displayName: data.username });
+
+                  toast({
+                    title: 'Profile Updated',
+                    description: 'Your username has been updated successfully.',
+                  });
+                } catch (error: any) {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Update Failed',
+                    description: error.message,
+                  });
+                }
+              })}
               className="space-y-4"
             >
               <FormField

@@ -13,7 +13,7 @@ import {
   deleteDoc,
   serverTimestamp,
 } from 'firebase/firestore';
-import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useUser, useMemoFirebase, useDoc } from '@/firebase';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -65,7 +65,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MoreVertical, PlusCircle } from 'lucide-react';
-import { useDoc } from '@/firebase/firestore/use-doc';
 
 const courseSchema = z.object({
   name: z.string().min(1, 'Course name is required.'),

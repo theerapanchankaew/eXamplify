@@ -16,7 +16,7 @@ import {
   writeBatch,
   getDocs,
 } from 'firebase/firestore';
-import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useUser, useMemoFirebase, useDoc } from '@/firebase';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -82,7 +82,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Import, MoreHorizontal, PlusCircle } from 'lucide-react';
-import { useDoc } from '@/firebase/firestore/use-doc';
 
 const examSchema = z.object({
   name: z.string().min(1, 'Exam name is required.'),
