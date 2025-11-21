@@ -240,6 +240,7 @@ export default function ExamsPage() {
       const examDocRef = doc(firestore, 'courses', selectedExam.courseId, 'exams', selectedExam.id);
       await deleteDoc(examDocRef);
       // This will trigger a re-fetch via useEffect, no need to manually update state
+      setExamsWithCounts(prev => prev.filter(exam => exam.id !== selectedExam.id));
       toast({
         title: 'Success',
         description: 'Exam deleted successfully.',
