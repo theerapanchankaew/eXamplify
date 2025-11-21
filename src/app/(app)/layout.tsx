@@ -66,7 +66,7 @@ export default function AppLayoutClient({
   }
 
   if (!user) {
-    return null;
+    return null; // Return null while waiting for the redirect to happen
   }
 
   return (
