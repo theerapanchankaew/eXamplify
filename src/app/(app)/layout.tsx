@@ -26,25 +26,22 @@ export default function AppLayoutClient({
     }
   }, [isClient, user, isUserLoading, router]);
 
-  // If loading, or not a client yet, or no user and waiting for redirect,
-  // render the layout with isLoading=true. It will handle its own skeletons.
-  // This avoids swapping entire layout structures, which causes hydration errors.
-  const isLoading = !isClient || isUserLoading || !user;
-
-  if (isClient && !isUserLoading && !user) {
-    // Return null or a minimal loader while redirecting to avoid rendering the full layout
-    // for an unauthenticated user, which might cause a flash of content.
+  // If we are on the server, or the user is loading, or we are about to redirect,
+  // render nothing to prevent any hydration mismatch. The redirect will happen
+  // in the useEffect above.
+  if (!isClient || isUserLoading || !user) {
     return null;
   }
 
+  // Once we are on the client and have a user, render the full layout.
   return (
     <SidebarProvider>
       <div className="group/sidebar-wrapper flex min-h-svh w-full has-[[data-variant=inset]]:bg-sidebar">
-          <AppSidebar isLoading={isLoading} />
+          <AppSidebar isLoading={isUserLoading} />
           <SidebarInset>
-            <AppHeader isLoading={isLoading} />
+            <AppHeader isLoading={isUserLoading} />
             <main className="flex-1 p-4 md:p-6 lg:p-8">
-              {isLoading ? null : children}
+              {children}
             </main>
           </SidebarInset>
       </div>
