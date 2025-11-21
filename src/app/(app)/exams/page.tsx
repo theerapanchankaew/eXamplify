@@ -144,7 +144,10 @@ export default function ExamsPage() {
   const userOwnedCourses = useMemo(() => {
     if (!courses || !user) return [];
     if (userProfile?.role === 'Admin') return courses;
-    return courses.filter(course => course.instructorId === user.uid);
+    if (userProfile?.role === 'Instructor') {
+        return courses.filter(course => course.instructorId === user.uid);
+    }
+    return [];
   }, [courses, user, userProfile]);
 
   useEffect(() => {

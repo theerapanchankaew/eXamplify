@@ -26,7 +26,7 @@ export type MenuCategory = {
 const allMenuItems: MenuCategory[] = [
     {
         label: 'Management',
-        roles: ['Admin'],
+        roles: ['Admin', 'Instructor'],
         items: [
             {
                 label: 'Dashboard',
@@ -50,7 +50,7 @@ const allMenuItems: MenuCategory[] = [
     },
     {
         label: 'Content',
-        roles: ['Admin', 'Instructor'],
+        roles: ['Admin', 'Instructor', 'Student'],
         items: [
             {
                 label: 'Courses',
