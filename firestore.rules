@@ -225,6 +225,14 @@ service cloud.firestore {
     }
 
     /**
+     * @description Allows collection group queries for exams by any signed-in user.
+     * This is necessary for the main "Exams" page to function correctly.
+     */
+    match /{path=**}/exams/{examId} {
+        allow get, list: if isSignedIn();
+    }
+    
+    /**
      * @description Stores exams for a given course.
      * @path /courses/{courseId}/exams/{examId}
      * @allow The course instructor (create) a new exam: auth.uid = 'instructor_abc', path = /courses/course_123/exams/exam_456
@@ -232,7 +240,8 @@ service cloud.firestore {
      * @principle Secures nested collections by checking ownership on the parent document.
      */
     match /courses/{courseId}/exams/{examId} {
-      allow get, list: if true; // TODO: Restrict reads to approved enrolled students
+      // We rely on the collection group query rule for reads.
+      allow get, list: if isSignedIn(); // TODO: Restrict reads to approved enrolled students
       allow create: if (isCourseInstructor(courseId) || isAdmin()) && request.resource.data.courseId == courseId;
       allow update, delete: if isCourseInstructor(courseId) || isAdmin();
     }
@@ -245,7 +254,7 @@ service cloud.firestore {
      * @principle Secures nested collections by checking ownership on the parent document.
      */
     match /courses/{courseId}/exams/{examId}/questions/{questionId} {
-      allow get, list: if true; // TODO: Restrict reads to approved enrolled students
+      allow get, list: if isCourseInstructor(courseId) || isAdmin(); // TODO: Restrict reads to approved enrolled students
       allow create: if (isCourseInstructor(courseId) || isAdmin()) && request.resource.data.examId == examId;
       allow update, delete: if isCourseInstructor(courseId) || isAdmin();
     }
@@ -277,7 +286,7 @@ service cloud.firestore {
      */
     match /enrollments/{enrollmentId} {
       allow get: if isSignedIn() && (isOwner(resource.data.userId) || isCourseInstructor(resource.data.courseId) || isAdmin());
-      allow list: if isSignedIn() && (isAdmin() || isInstructor() || (request.query.get('where') != null && request.query.where[0] == 'userId' && request.query.where[2] == request.auth.uid));
+      allow list: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update: if isCourseInstructor(resource.data.courseId) || isAdmin();
       delete: if isOwner(resource.data.userId) || isCourseInstructor(resource.data.courseId) || isAdmin();

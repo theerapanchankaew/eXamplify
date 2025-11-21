@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useParams, useRouter } from 'next/navigation';
-import { useFirestore, useUser, useDoc, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore, useUser, useDoc, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
 import {
   collection,
   query,
@@ -162,22 +162,30 @@ export default function CourseDetailPage() {
   const handleModuleSubmit = async (data: ModuleFormData) => {
     if (!firestore || !courseId) return;
     const modulesColRef = collection(firestore, 'courses', courseId as string, 'modules');
+    
+    const submissionData = {
+        ...data,
+        courseId: courseId,
+        ...(selectedModule ? {} : { createdAt: serverTimestamp() }),
+    };
+
     try {
       if (selectedModule) {
         const moduleDocRef = doc(modulesColRef, selectedModule.id);
-        await updateDoc(moduleDocRef, data);
+        await updateDoc(moduleDocRef, submissionData);
         toast({ title: 'Success', description: 'Module updated successfully.' });
       } else {
-        await addDoc(modulesColRef, {
-          ...data,
-          courseId: courseId,
-          createdAt: serverTimestamp(),
-        });
+        await addDoc(modulesColRef, submissionData);
         toast({ title: 'Success', description: 'Module created successfully.' });
       }
       setModuleDialogOpen(false);
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
+        const permissionError = new FirestorePermissionError({
+            path: selectedModule ? doc(modulesColRef, selectedModule.id).path : modulesColRef.path,
+            operation: selectedModule ? 'update' : 'create',
+            requestResourceData: submissionData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
     }
   };
 
@@ -204,18 +212,30 @@ export default function CourseDetailPage() {
   const handleChapterSubmit = async (data: ChapterFormData) => {
       if (!firestore || !courseId || !currentModuleForChapter) return;
       const chaptersColRef = collection(firestore, 'courses', courseId as string, 'modules', currentModuleForChapter.id, 'chapters');
+      
+      const submissionData = {
+          ...data,
+          moduleId: currentModuleForChapter.id,
+          ...(selectedChapter ? {} : { createdAt: serverTimestamp() }),
+      };
+
       try {
           if (selectedChapter) {
               const chapterDocRef = doc(chaptersColRef, selectedChapter.id);
-              await updateDoc(chapterDocRef, data);
+              await updateDoc(chapterDocRef, submissionData);
               toast({ title: 'Success', description: 'Chapter updated successfully.' });
           } else {
-              await addDoc(chaptersColRef, { ...data, moduleId: currentModuleForChapter.id, createdAt: serverTimestamp() });
+              await addDoc(chaptersColRef, submissionData);
               toast({ title: 'Success', description: 'Chapter created successfully.' });
           }
           setChapterDialogOpen(false);
       } catch (error: any) {
-          toast({ variant: 'destructive', title: 'Error', description: error.message });
+          const permissionError = new FirestorePermissionError({
+              path: selectedChapter ? doc(chaptersColRef, selectedChapter.id).path : chaptersColRef.path,
+              operation: selectedChapter ? 'update' : 'create',
+              requestResourceData: submissionData,
+          });
+          errorEmitter.emit('permission-error', permissionError);
       }
   };
 
@@ -236,7 +256,15 @@ export default function CourseDetailPage() {
             toast({ title: 'Success', description: 'Chapter deleted successfully.' });
         }
     } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Error', description: error.message });
+        const docRefPath = type === 'module' 
+            ? `courses/${courseId}/modules/${data.id}`
+            : `courses/${courseId}/modules/${data.module.id}/chapters/${data.chapter.id}`;
+        
+        const permissionError = new FirestorePermissionError({
+            path: docRefPath,
+            operation: 'delete',
+        });
+        errorEmitter.emit('permission-error', permissionError);
     } finally {
         setDeleteDialogOpen(false);
         setItemToDelete(null);
@@ -466,3 +494,5 @@ export default function CourseDetailPage() {
     </div>
   );
 }
+
+    

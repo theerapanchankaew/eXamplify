@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { useFirestore, useUser, useDoc, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore, useUser, useDoc, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
 import {
   collection,
   query,
@@ -234,18 +234,27 @@ export default function ExamDetailPage() {
       }
       setQuestionDialogOpen(false);
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
+        const permissionError = new FirestorePermissionError({
+            path: selectedQuestion ? doc(questionsColRef, selectedQuestion.id).path : questionsColRef.path,
+            operation: selectedQuestion ? 'update' : 'create',
+            requestResourceData: submissionData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
     }
   };
 
   const confirmDelete = async () => {
     if (!firestore || !courseId || !examId || !selectedQuestion) return;
+    const questionDocRef = doc(firestore, 'courses', courseId as string, 'exams', examId as string, 'questions', selectedQuestion.id);
     try {
-        const questionDocRef = doc(firestore, 'courses', courseId as string, 'exams', examId as string, 'questions', selectedQuestion.id);
         await deleteDoc(questionDocRef);
         toast({ title: 'Success', description: 'Question deleted successfully.' });
     } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Error', description: error.message });
+        const permissionError = new FirestorePermissionError({
+            path: questionDocRef.path,
+            operation: 'delete',
+        });
+        errorEmitter.emit('permission-error', permissionError);
     } finally {
         setDeleteDialogOpen(false);
         setSelectedQuestion(null);
@@ -286,7 +295,7 @@ export default function ExamDetailPage() {
             
             toast({
             title: 'Import Successful',
-            description: `${"validatedQuestions.length"} questions have been imported to this exam.`,
+            description: `${validatedQuestions.length} questions have been imported to this exam.`,
             });
         } catch (error: any) {
             let description = 'An unknown error occurred.';
@@ -609,3 +618,5 @@ export default function ExamDetailPage() {
     </div>
   );
 }
+
+    
