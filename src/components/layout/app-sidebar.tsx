@@ -12,6 +12,7 @@ import {
   SidebarSeparator,
   SidebarGroup,
   SidebarGroupLabel,
+  SidebarMenuSkeleton,
 } from '@/components/ui/sidebar';
 import { getMenuItems, settingsItem } from '@/lib/menu-items';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
@@ -67,7 +68,11 @@ function Logo() {
   );
 }
 
-export function AppSidebar() {
+interface AppSidebarProps {
+  isLoading?: boolean;
+}
+
+export function AppSidebar({ isLoading }: AppSidebarProps) {
   const pathname = usePathname();
   const { user } = useUser();
   const firestore = useFirestore();
@@ -88,43 +93,58 @@ export function AppSidebar() {
         </Link>
       </SidebarHeader>
       <SidebarContent>
-        {menuCategories.map((category, index) => (
-            <SidebarGroup key={category.label}>
-                {index > 0 && <SidebarSeparator />}
-                <SidebarGroupLabel>{category.label}</SidebarGroupLabel>
-                <SidebarMenu>
-                {category.items.map((item) => (
-                    <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                        asChild
-                        isActive={pathname.startsWith(item.href)}
-                        tooltip={{ children: item.label, side: 'right' }}
-                    >
-                        <Link href={item.href}>
-                        <item.icon />
-                        <span>{item.label}</span>
-                        </Link>
-                    </SidebarMenuButton>
-                    </SidebarMenuItem>
-                ))}
-                </SidebarMenu>
-            </SidebarGroup>
-        ))}
+        {isLoading ? (
+            <div className="flex flex-col gap-4 p-2">
+                <SidebarMenuSkeleton showIcon />
+                <SidebarMenuSkeleton showIcon />
+                <SidebarMenuSkeleton showIcon />
+                <SidebarSeparator />
+                <SidebarMenuSkeleton showIcon />
+                <SidebarMenuSkeleton showIcon />
+            </div>
+        ) : (
+            menuCategories.map((category, index) => (
+                <SidebarGroup key={category.label}>
+                    {index > 0 && <SidebarSeparator />}
+                    <SidebarGroupLabel>{category.label}</SidebarGroupLabel>
+                    <SidebarMenu>
+                    {category.items.map((item) => (
+                        <SidebarMenuItem key={item.href}>
+                        <SidebarMenuButton
+                            asChild
+                            isActive={pathname.startsWith(item.href)}
+                            tooltip={{ children: item.label, side: 'right' }}
+                        >
+                            <Link href={item.href}>
+                            <item.icon />
+                            <span>{item.label}</span>
+                            </Link>
+                        </SidebarMenuButton>
+                        </SidebarMenuItem>
+                    ))}
+                    </SidebarMenu>
+                </SidebarGroup>
+            ))
+        )}
       </SidebarContent>
       <SidebarContent className="mt-auto">
          <SidebarSeparator />
          <SidebarMenu className="py-2">
           <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              isActive={pathname.startsWith(settingsItem.href)}
-              tooltip={{ children: settingsItem.label, side: 'right' }}
-            >
-              <Link href={settingsItem.href}>
-                <settingsItem.icon />
-                <span>{settingsItem.label}</span>
-              </Link>
-            </SidebarMenuButton>
+             {isLoading ? (
+                 <SidebarMenuSkeleton showIcon />
+             ) : (
+                <SidebarMenuButton
+                asChild
+                isActive={pathname.startsWith(settingsItem.href)}
+                tooltip={{ children: settingsItem.label, side: 'right' }}
+                >
+                <Link href={settingsItem.href}>
+                    <settingsItem.icon />
+                    <span>{settingsItem.label}</span>
+                </Link>
+                </SidebarMenuButton>
+             )}
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarContent>

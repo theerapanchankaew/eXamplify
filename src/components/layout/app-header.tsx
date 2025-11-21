@@ -21,7 +21,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useMemo } from 'react';
 import { useDoc } from '@/firebase/firestore/use-doc';
 
-export function AppHeader() {
+interface AppHeaderProps {
+  isLoading?: boolean;
+}
+
+export function AppHeader({ isLoading }: AppHeaderProps) {
   const { user } = useUser();
   const auth = useAuth();
   const firestore = useFirestore();
@@ -35,11 +39,9 @@ export function AppHeader() {
   const transactionsQuery = useMemoFirebase(
     () => {
       if (!firestore || !userProfile) return null;
-      // If admin, get all transactions to be able to derive personal balance
       if (userProfile.role === 'Admin') {
         return query(collectionGroup(firestore, 'tokenTransactions'));
       }
-      // For other users, get only their own transactions
       return query(collection(firestore, 'users', user!.uid, 'tokenTransactions'));
     },
     [firestore, user, userProfile]
@@ -49,7 +51,6 @@ export function AppHeader() {
 
   const totalUserTokens = useMemo(() => {
       if (!transactions || !user) return 0;
-      // Always filter the transactions to get the balance for the currently logged-in user.
       const userTransactions = transactions.filter(t => t.path?.includes(user.uid));
       return userTransactions.reduce((sum, transaction) => sum + (transaction.amount || 0), 0);
     },
@@ -63,7 +64,7 @@ export function AppHeader() {
     }
   };
   
-  const isLoading = isLoadingTokens || isLoadingProfile;
+  const isDataLoading = isLoading || isLoadingTokens || isLoadingProfile;
   const displayPhotoUrl = userProfile?.photoURL || user?.photoURL || `https://picsum.photos/seed/${user?.uid}/40/40`;
 
 
@@ -91,7 +92,7 @@ export function AppHeader() {
             <Wallet className="h-5 w-5" />
             <span className="sr-only">Wallet</span>
           </Button>
-          {isLoading ? (
+          {isDataLoading ? (
              <Skeleton className="h-5 w-12" />
           ) : (
             <span className="font-semibold text-sm">{totalUserTokens.toLocaleString()}</span>
@@ -103,7 +104,9 @@ export function AppHeader() {
           <span className="sr-only">Toggle notifications</span>
         </Button>
 
-        {user ? (
+        {isDataLoading ? (
+            <Skeleton className="h-9 w-9 rounded-full" />
+        ) : user ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
