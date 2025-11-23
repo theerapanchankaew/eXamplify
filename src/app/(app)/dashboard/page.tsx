@@ -6,6 +6,8 @@ import {
   BookOpen,
   CircleDollarSign,
   Users,
+  PlayCircle,
+  Trophy
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -28,12 +30,15 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { OverviewChart } from '@/components/dashboard/overview-chart';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, collectionGroup } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { collection, query, collectionGroup, where, orderBy, limit } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Progress } from '@/components/ui/progress';
+import { calculateCourseProgress, getNextAction } from '@/lib/lesson-progress';
 
 export default function DashboardPage() {
   const firestore = useFirestore();
+  const { user } = useUser();
 
   const usersCollectionQuery = useMemoFirebase(
     () => (firestore ? query(collection(firestore, 'users')) : null),
@@ -52,7 +57,7 @@ export default function DashboardPage() {
   const { data: courses, isLoading: isLoadingCourses } = useCollection(
     coursesCollectionQuery
   );
-  
+
   const examsCollectionQuery = useMemoFirebase(
     () => (firestore ? query(collectionGroup(firestore, 'exams')) : null),
     [firestore]
@@ -71,10 +76,22 @@ export default function DashboardPage() {
     tokenTransactionsQuery
   );
 
-  const totalTokens = useMemoFirebase(
-    () => tokenTransactions?.reduce((sum, transaction) => sum + (transaction.amount || 0), 0) || 0,
-    [tokenTransactions]
+  const totalTokens = tokenTransactions?.reduce((sum, transaction) => sum + (transaction.amount || 0), 0) || 0;
+
+  const enrollmentsQuery = useMemoFirebase(
+    () =>
+      firestore && user
+        ? query(collection(firestore, 'enrollments'), where('userId', '==', user.uid))
+        : null,
+    [firestore, user]
   );
+  const { data: enrollments, isLoading: isLoadingEnrollments } = useCollection(enrollmentsQuery);
+
+  const recentEnrollmentsQuery = useMemoFirebase(
+    () => (firestore ? query(collection(firestore, 'enrollments'), orderBy('enrolledAt', 'desc'), limit(5)) : null),
+    [firestore]
+  );
+  const { data: recentEnrollments, isLoading: isLoadingRecentEnrollments } = useCollection(recentEnrollmentsQuery);
 
 
   return (
@@ -168,112 +185,144 @@ export default function DashboardPage() {
         </div>
         <div className="grid gap-4 md:gap-8 lg:grid-cols-2 xl:grid-cols-3">
           <Card className="xl:col-span-2">
-            <CardHeader>
-              <CardTitle>Revenue Overview</CardTitle>
+            <CardHeader className="flex flex-row items-center">
+              <div className="grid gap-2">
+                <CardTitle>Continue Learning</CardTitle>
+                <CardDescription>
+                  Pick up where you left off.
+                </CardDescription>
+              </div>
+              <Button asChild size="sm" className="ml-auto gap-1">
+                <Link href="/courses">
+                  View All Courses
+                  <ArrowUpRight className="h-4 w-4" />
+                </Link>
+              </Button>
             </CardHeader>
-            <CardContent className="pl-2">
-              <OverviewChart />
+            <CardContent>
+              {isLoadingEnrollments || isLoadingCourses ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-16 w-full" />
+                </div>
+              ) : enrollments && enrollments.length > 0 ? (
+                <div className="space-y-6">
+                  {enrollments.map((enrollment) => {
+                    const course = courses?.find((c) => c.id === enrollment.courseId);
+                    if (!course) return null;
+
+                    // We don't have modules here efficiently, so we pass empty array
+                    // The utility handles this gracefully
+                    const progress = calculateCourseProgress(enrollment, []);
+                    const nextAction = getNextAction(course.id, true, progress, []);
+
+                    return (
+                      <div key={enrollment.id} className="flex items-center gap-4">
+                        <div className="hidden h-9 w-9 items-center justify-center rounded-full border border-primary/10 bg-primary/10 sm:flex">
+                          <BookOpen className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="grid gap-1 flex-1">
+                          <p className="text-sm font-medium leading-none">
+                            {course.name}
+                          </p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Progress value={progress.percentage} className="h-2 w-24" />
+                            <span>{Math.round(progress.percentage)}% Complete</span>
+                          </div>
+                        </div>
+                        <Button asChild size="sm" variant={progress.percentage === 100 ? "outline" : "default"}>
+                          <Link href={nextAction.link}>
+                            {progress.percentage === 100 ? (
+                              <>
+                                <Trophy className="mr-2 h-4 w-4" />
+                                Certificate
+                              </>
+                            ) : (
+                              <>
+                                <PlayCircle className="mr-2 h-4 w-4" />
+                                Continue
+                              </>
+                            )}
+                          </Link>
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <BookOpen className="h-10 w-10 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold">No Active Courses</h3>
+                  <p className="text-sm text-muted-foreground max-w-sm mb-4">
+                    You haven't enrolled in any courses yet. Browse our catalog to get started.
+                  </p>
+                  <Button asChild>
+                    <Link href="/courses">Browse Courses</Link>
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Recent Enrollments</CardTitle>
               <CardDescription>
-                26 enrollments this month.
+                Recent student enrollments.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-8">
-                <div className="flex items-center">
-                  <Avatar className="h-9 w-9" data-ai-hint="person face">
-                    <AvatarImage
-                      src="https://picsum.photos/seed/p1/40/40"
-                      alt="Avatar"
-                    />
-                    <AvatarFallback>OM</AvatarFallback>
-                  </Avatar>
-                  <div className="ml-4 space-y-1">
-                    <p className="text-sm font-medium leading-none">
-                      Olivia Martin
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      olivia.martin@email.com
-                    </p>
+                {isLoadingRecentEnrollments ? (
+                  <div className="space-y-4">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-4">
+                        <Skeleton className="h-9 w-9 rounded-full" />
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-[150px]" />
+                          <Skeleton className="h-4 w-[100px]" />
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="ml-auto font-medium">+$1,999.00</div>
-                </div>
-                <div className="flex items-center">
-                  <Avatar className="flex h-9 w-9 items-center justify-center space-y-0 border" data-ai-hint="person face">
-                    <AvatarImage
-                      src="https://picsum.photos/seed/p2/40/40"
-                      alt="Avatar"
-                    />
-                    <AvatarFallback>JL</AvatarFallback>
-                  </Avatar>
-                  <div className="ml-4 space-y-1">
-                    <p className="text-sm font-medium leading-none">
-                      Jackson Lee
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      jackson.lee@email.com
-                    </p>
+                ) : recentEnrollments && recentEnrollments.length > 0 ? (
+                  recentEnrollments.map((enrollment) => {
+                    const user = users?.find((u) => u.id === enrollment.userId);
+                    const course = courses?.find((c) => c.id === enrollment.courseId);
+                    const userInitials = user?.displayName
+                      ? user.displayName
+                          .split(' ')
+                          .map((n: string) => n[0])
+                          .join('')
+                          .toUpperCase()
+                          .slice(0, 2)
+                      : '??';
+
+                    return (
+                      <div key={enrollment.id} className="flex items-center">
+                        <Avatar className="h-9 w-9">
+                          <AvatarImage src={user?.photoURL || ''} alt="Avatar" />
+                          <AvatarFallback>{userInitials}</AvatarFallback>
+                        </Avatar>
+                        <div className="ml-4 space-y-1">
+                          <p className="text-sm font-medium leading-none">
+                            {user?.displayName || 'Unknown User'}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {user?.email || 'No email'}
+                          </p>
+                        </div>
+                        <div className="ml-auto font-medium">
+                          {course?.price ? `+$${course.price.toFixed(2)}` : 'Free'}
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="text-center text-sm text-muted-foreground py-4">
+                    No recent enrollments found.
                   </div>
-                  <div className="ml-auto font-medium">+$39.00</div>
-                </div>
-                <div className="flex items-center">
-                  <Avatar className="h-9 w-9" data-ai-hint="person face">
-                    <AvatarImage
-                      src="https://picsum.photos/seed/p3/40/40"
-                      alt="Avatar"
-                    />
-                    <AvatarFallback>IN</AvatarFallback>
-                  </Avatar>
-                  <div className="ml-4 space-y-1">
-                    <p className="text-sm font-medium leading-none">
-                      Isabella Nguyen
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      isabella.nguyen@email.com
-                    </p>
-                  </div>
-                  <div className="ml-auto font-medium">+$299.00</div>
-                </div>
-                <div className="flex items-center">
-                  <Avatar className="h-9 w-9" data-ai-hint="person face">
-                    <AvatarImage
-                      src="https://picsum.photos/seed/p4/40/40"
-                      alt="Avatar"
-                    />
-                    <AvatarFallback>WK</AvatarFallback>
-                  </Avatar>
-                  <div className="ml-4 space-y-1">
-                    <p className="text-sm font-medium leading-none">
-                      William Kim
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      will@email.com
-                    </p>
-                  </div>
-                  <div className="ml-auto font-medium">+$99.00</div>
-                </div>
-                <div className="flex items-center">
-                  <Avatar className="h-9 w-9" data-ai-hint="person face">
-                    <AvatarImage
-                      src="https://picsum.photos/seed/p5/40/40"
-                      alt="Avatar"
-                    />
-                    <AvatarFallback>SD</AvatarFallback>
-                  </Avatar>
-                  <div className="ml-4 space-y-1">
-                    <p className="text-sm font-medium leading-none">
-                      Sofia Davis
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      sofia.davis@email.com
-                    </p>
-                  </div>
-                  <div className="ml-auto font-medium">+$39.00</div>
-                </div>
+                )}
               </div>
             </CardContent>
           </Card>

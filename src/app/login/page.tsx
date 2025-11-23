@@ -12,13 +12,6 @@ import { doc, setDoc, writeBatch } from 'firebase/firestore';
 import { useAuth, useFirestore, useUser } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
   Form,
   FormControl,
   FormField,
@@ -29,6 +22,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { redirect } from 'next/navigation';
+import { Command } from 'lucide-react';
+import { AiBackground } from '@/components/ui/ai-background';
+import { cn } from '@/lib/utils';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Invalid email address.' }),
@@ -45,6 +41,7 @@ export default function LoginPage() {
   const { user } = useUser();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -57,13 +54,13 @@ export default function LoginPage() {
   const handleLogin = async (values: FormData) => {
     setIsLoading(true);
     if (!auth) {
-        toast({
-            variant: 'destructive',
-            title: 'Login Failed',
-            description: 'Firebase Auth is not available.',
-        });
-        setIsLoading(false);
-        return;
+      toast({
+        variant: 'destructive',
+        title: 'Login Failed',
+        description: 'Firebase Auth is not available.',
+      });
+      setIsLoading(false);
+      return;
     }
     try {
       await signInWithEmailAndPassword(auth, values.email, values.password);
@@ -82,13 +79,13 @@ export default function LoginPage() {
   const handleSignUp = async (values: FormData) => {
     setIsLoading(true);
     if (!auth || !firestore) {
-        toast({
-            variant: 'destructive',
-            title: 'Sign Up Failed',
-            description: 'Firebase services are not available.',
-        });
-        setIsLoading(false);
-        return;
+      toast({
+        variant: 'destructive',
+        title: 'Sign Up Failed',
+        description: 'Firebase services are not available.',
+      });
+      setIsLoading(false);
+      return;
     }
     try {
       const userCredential = await createUserWithEmailAndPassword(
@@ -98,7 +95,7 @@ export default function LoginPage() {
       );
       const newUser = userCredential.user;
 
-      const isAdmin = values.email.toLowerCase() === 'admin@masci.com';
+      const isAdmin = values.email.toLowerCase() === 'admin@masci.com' || values.email.toLowerCase() === 'admin@masci.or.th';
       const userRole = isAdmin ? 'Admin' : 'Student';
 
       const batch = writeBatch(firestore);
@@ -108,7 +105,7 @@ export default function LoginPage() {
         id: newUser.uid,
         email: newUser.email,
         role: userRole,
-        username: newUser.email?.split('@')[0] || `user_${newUser.uid.substring(0,5)}`,
+        username: newUser.email?.split('@')[0] || `user_${newUser.uid.substring(0, 5)}`,
       });
 
       if (isAdmin) {
@@ -122,7 +119,6 @@ export default function LoginPage() {
         title: 'Success',
         description: 'Account created successfully. You are now logged in.',
       });
-      // No need to clear form, user will be redirected
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -133,75 +129,157 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
-  
+
   if (user) {
     redirect('/dashboard');
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle className="text-2xl">eXamplify</CardTitle>
-          <CardDescription>
-            Enter your credentials to access your account.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form className="space-y-4">
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="m@example.com"
-                        {...field}
-                        disabled={isLoading}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="password"
-                        {...field}
-                        disabled={isLoading}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="flex flex-col space-y-2 pt-2">
-                <Button type="button" className="w-full" disabled={isLoading} onClick={form.handleSubmit(handleLogin)}>
-                  {isLoading ? 'Loading...' : 'Login'}
+    <div className="flex min-h-screen items-center justify-center bg-zinc-100 dark:bg-zinc-900 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="relative w-full max-w-[850px] min-h-[500px] bg-white dark:bg-zinc-800 rounded-[20px] shadow-2xl overflow-hidden">
+
+        {/* Sign Up Form Container */}
+        <div className={cn(
+          "absolute top-0 h-full transition-all duration-700 ease-in-out left-0 w-1/2 z-10",
+          isSignUp ? "translate-x-full opacity-100 z-50" : "opacity-0 z-0"
+        )}>
+          <div className="flex flex-col items-center justify-center h-full px-10 text-center">
+            <h1 className="text-3xl font-bold mb-4 text-zinc-800 dark:text-white">Create Account</h1>
+            <p className="text-sm text-muted-foreground mb-8">Use your email for registration</p>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(handleSignUp)} className="w-full space-y-4 text-left">
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input placeholder="Email" {...field} disabled={isLoading} className="bg-zinc-100 dark:bg-zinc-700 border-none" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input type="password" placeholder="Password" {...field} disabled={isLoading} className="bg-zinc-100 dark:bg-zinc-700 border-none" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-full transition-transform active:scale-95" disabled={isLoading}>
+                  {isLoading ? 'Creating...' : 'Sign Up'}
                 </Button>
+              </form>
+            </Form>
+          </div>
+        </div>
+
+        {/* Sign In Form Container */}
+        <div className={cn(
+          "absolute top-0 h-full transition-all duration-700 ease-in-out left-0 w-1/2 z-20",
+          isSignUp ? "translate-x-full opacity-0" : "opacity-100"
+        )}>
+          <div className="flex flex-col items-center justify-center h-full px-10 text-center">
+            <h1 className="text-3xl font-bold mb-4 text-zinc-800 dark:text-white">Sign In</h1>
+            <p className="text-sm text-muted-foreground mb-8">Welcome back! Please login to your account.</p>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(handleLogin)} className="w-full space-y-4 text-left">
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input placeholder="Email" {...field} disabled={isLoading} className="bg-zinc-100 dark:bg-zinc-700 border-none" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input type="password" placeholder="Password" {...field} disabled={isLoading} className="bg-zinc-100 dark:bg-zinc-700 border-none" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-full transition-transform active:scale-95" disabled={isLoading}>
+                  {isLoading ? 'Logging in...' : 'Sign In'}
+                </Button>
+              </form>
+            </Form>
+          </div>
+        </div>
+
+        {/* Overlay Container */}
+        <div className={cn(
+          "absolute top-0 left-1/2 w-1/2 h-full overflow-hidden transition-transform duration-700 ease-in-out z-100",
+          isSignUp ? "-translate-x-full" : ""
+        )}>
+          <div className={cn(
+            "bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white relative -left-full h-full w-[200%] transform transition-transform duration-700 ease-in-out",
+            isSignUp ? "translate-x-1/2" : "translate-x-0"
+          )}>
+            <AiBackground />
+
+            {/* Overlay Left (Visible when Sign Up is active) */}
+            <div className={cn(
+              "absolute top-0 flex flex-col items-center justify-center h-full w-1/2 px-10 text-center transform transition-transform duration-700 ease-in-out",
+              isSignUp ? "translate-x-0" : "-translate-x-[20%]"
+            )}>
+              <div className="relative z-10">
+                <div className="flex items-center justify-center mb-4 text-3xl font-bold">
+                  <Command className="mr-2 h-8 w-8" />
+                  eXamplify
+                </div>
+                <h1 className="text-3xl font-bold mb-4">Welcome Back!</h1>
+                <p className="mb-8 text-lg">To keep connected with us please login with your personal info</p>
                 <Button
-                  type="button"
                   variant="outline"
-                  className="w-full"
-                  onClick={form.handleSubmit(handleSignUp)}
-                  disabled={isLoading}
+                  className="bg-transparent border-white text-white hover:bg-white hover:text-indigo-600 rounded-full px-8 py-2 font-bold transition-colors"
+                  onClick={() => setIsSignUp(false)}
                 >
-                  {isLoading ? 'Loading...' : 'Sign Up'}
+                  Sign In
                 </Button>
               </div>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
+            </div>
+
+            {/* Overlay Right (Visible when Sign In is active) */}
+            <div className={cn(
+              "absolute top-0 right-0 flex flex-col items-center justify-center h-full w-1/2 px-10 text-center transform transition-transform duration-700 ease-in-out",
+              isSignUp ? "translate-x-[20%]" : "translate-x-0"
+            )}>
+              <div className="relative z-10">
+                <div className="flex items-center justify-center mb-4 text-3xl font-bold">
+                  <Command className="mr-2 h-8 w-8" />
+                  eXamplify
+                </div>
+                <h1 className="text-3xl font-bold mb-4">Hello, Friend!</h1>
+                <p className="mb-8 text-lg">Enter your personal details and start journey with us</p>
+                <Button
+                  variant="outline"
+                  className="bg-transparent border-white text-white hover:bg-white hover:text-indigo-600 rounded-full px-8 py-2 font-bold transition-colors"
+                  onClick={() => setIsSignUp(true)}
+                >
+                  Sign Up
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
     </div>
   );
 }

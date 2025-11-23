@@ -13,7 +13,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
 /** Utility type to add an 'id' field to a given type T. */
-export type WithId<T> = T & { id: string };
+export type WithId<T> = T & { id: string; path: string };
 
 /**
  * Interface for the return value of the useCollection hook.
@@ -52,7 +52,7 @@ export interface InternalQuery extends Query<DocumentData> {
  * @returns {UseCollectionResult<T>} Object with data, isLoading, error.
  */
 export function useCollection<T = any>(
-    memoizedTargetRefOrQuery: ((CollectionReference<DocumentData> | Query<DocumentData>) & {__memo?: boolean})  | null | undefined,
+  memoizedTargetRefOrQuery: ((CollectionReference<DocumentData> | Query<DocumentData>) & { __memo?: boolean }) | null | undefined,
 ): UseCollectionResult<T> {
   type ResultItemType = WithId<T>;
   type StateDataType = ResultItemType[] | null;
@@ -78,7 +78,7 @@ export function useCollection<T = any>(
       (snapshot: QuerySnapshot<DocumentData>) => {
         const results: ResultItemType[] = [];
         for (const doc of snapshot.docs) {
-          results.push({ ...(doc.data() as T), id: doc.id });
+          results.push({ ...(doc.data() as T), id: doc.id, path: doc.ref.path });
         }
         setData(results);
         setError(null);
@@ -91,25 +91,25 @@ export function useCollection<T = any>(
         if (memoizedTargetRefOrQuery.type === 'collection') {
           path = (memoizedTargetRefOrQuery as CollectionReference).path;
         } else if (memoizedTargetRefOrQuery.type === 'query') {
-            try {
-                 path = (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString();
-            } catch (e) {
-                // Fallback for collection group or other query types
-                console.warn("Could not determine canonical path for query error.", e);
-            }
+          try {
+            path = (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString();
+          } catch (e) {
+            // Fallback for collection group or other query types
+            console.warn("Could not determine canonical path for query error.", e);
+          }
         }
-        
+
         if (path) {
-            const contextualError = new FirestorePermissionError({
-              operation: 'list',
-              path,
-            })
-    
-            setError(contextualError)
-             // trigger global error propagation
-            errorEmitter.emit('permission-error', contextualError);
+          const contextualError = new FirestorePermissionError({
+            operation: 'list',
+            path,
+          })
+
+          setError(contextualError)
+          // trigger global error propagation
+          errorEmitter.emit('permission-error', contextualError);
         } else {
-             setError(error);
+          setError(error);
         }
 
         setData(null)
@@ -120,8 +120,8 @@ export function useCollection<T = any>(
 
     return () => unsubscribe();
   }, [memoizedTargetRefOrQuery]); // Re-run if the target query/reference changes.
-  
-  if(memoizedTargetRefOrQuery && !memoizedTargetRefOrQuery.__memo) {
+
+  if (memoizedTargetRefOrQuery && !memoizedTargetRefOrQuery.__memo) {
     throw new Error('A firestore query was not properly memoized using useMemoFirebase. This will cause infinite render loops.');
   }
 

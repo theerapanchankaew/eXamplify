@@ -91,17 +91,23 @@ export default function BillingPage() {
   );
   const { data: users, isLoading: isLoadingUsers } = useCollection(usersCollectionQuery);
 
-  const transactionsQuery = useMemoFirebase(
+  // Query for the current user's transactions (for Balance)
+  const myTransactionsQuery = useMemoFirebase(
+    () => (firestore && user ? query(collection(firestore, 'users', user.uid, 'tokenTransactions'), orderBy('timestamp', 'desc')) : null),
+    [firestore, user]
+  );
+  const { data: myTransactions, isLoading: isLoadingMyTransactions } = useCollection(myTransactionsQuery);
+
+  // Query for the history table (Admin sees all, User sees theirs)
+  const historyQuery = useMemoFirebase(
     () => {
       if (!firestore || !userProfile) return null;
       if (userProfile.role === 'Admin') {
-        // Admin sees all transactions
         return query(
           collectionGroup(firestore, 'tokenTransactions'),
           orderBy('timestamp', 'desc')
         );
       }
-      // Regular user sees only their own transactions
       return query(
         collection(firestore, 'users', userProfile.id, 'tokenTransactions'),
         orderBy('timestamp', 'desc')
@@ -110,18 +116,13 @@ export default function BillingPage() {
     [firestore, userProfile]
   );
 
-  const { data: transactions, isLoading: isLoadingTransactions } = useCollection(transactionsQuery);
+  const { data: historyTransactions, isLoading: isLoadingHistory, error: historyError } = useCollection(historyQuery);
 
   const currentBalance = useMemo(() => {
-    if (!transactions || !user) return 0;
-    
-    // Always calculate the balance for the *current* logged-in user.
-    // Filter the transactions array to only include those belonging to the current user.
-    return transactions
-      .filter(t => t.path?.includes(user.uid))
-      .reduce((sum, t) => sum + (t.amount || 0), 0);
-  }, [transactions, user]);
-  
+    if (!myTransactions) return 0;
+    return myTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
+  }, [myTransactions]);
+
   const topUpForm = useForm<TopUpFormData>({
     resolver: zodResolver(topUpSchema),
     defaultValues: {
@@ -161,7 +162,7 @@ export default function BillingPage() {
         timestamp: serverTimestamp(),
         description: `Top-up by Admin (${user.email})`,
       });
-      
+
       const toppedUpUser = users?.find(u => u.id === userId);
 
       toast({
@@ -183,48 +184,48 @@ export default function BillingPage() {
     // In a real application, this would involve a backend call
     // to validate the code and then credit the user's account.
     console.log('Redeeming code:', data.code);
-    
+
     // Simulate API call
     redeemCodeForm.formState.isSubmitting;
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     if (data.code.toUpperCase() === 'FREE1000') {
-        if (!firestore || !user) return;
-        try {
-            const transactionsColRef = collection(
-                firestore,
-                'users',
-                user.uid,
-                'tokenTransactions'
-            );
-            await addDoc(transactionsColRef, {
-                userId: user.uid,
-                amount: 1000,
-                transactionType: 'reward',
-                timestamp: serverTimestamp(),
-                description: `Redeemed activation code: ${data.code}`,
-            });
-            toast({
-                title: 'Code Redeemed!',
-                description: '1,000 tokens have been added to your wallet.',
-            });
-            redeemCodeForm.reset();
-        } catch (error: any) {
-            toast({
-                variant: 'destructive',
-                title: 'Redemption Failed',
-                description: error.message,
-            });
-        }
-    } else {
-        toast({
-            variant: 'destructive',
-            title: 'Invalid Code',
-            description: 'The activation code you entered is not valid.',
+      if (!firestore || !user) return;
+      try {
+        const transactionsColRef = collection(
+          firestore,
+          'users',
+          user.uid,
+          'tokenTransactions'
+        );
+        await addDoc(transactionsColRef, {
+          userId: user.uid,
+          amount: 1000,
+          transactionType: 'reward',
+          timestamp: serverTimestamp(),
+          description: `Redeemed activation code: ${data.code}`,
         });
+        toast({
+          title: 'Code Redeemed!',
+          description: '1,000 tokens have been added to your wallet.',
+        });
+        redeemCodeForm.reset();
+      } catch (error: any) {
+        toast({
+          variant: 'destructive',
+          title: 'Redemption Failed',
+          description: error.message,
+        });
+      }
+    } else {
+      toast({
+        variant: 'destructive',
+        title: 'Invalid Code',
+        description: 'The activation code you entered is not valid.',
+      });
     }
   };
-  
+
   const getBadgeVariant = (type: string) => {
     switch (type) {
       case 'top-up':
@@ -237,24 +238,25 @@ export default function BillingPage() {
         return 'outline';
     }
   };
-  
-  const isLoading = isLoadingTransactions || isLoadingProfile || isLoadingUsers;
+
+  const isLoading = isLoadingHistory || isLoadingProfile || isLoadingUsers;
 
   // Enhance transactions with user info for display
   const enrichedTransactions = useMemo(() => {
-    if (isLoading || !transactions || !users) return [];
-    if(userProfile?.role !== 'Admin') {
-      // Non-admins see only their transactions, so filter them.
-      return transactions.filter(t => t.path?.includes(user?.uid || ''));
+    if (isLoading || !historyTransactions || !users) return [];
+
+    if (userProfile?.role !== 'Admin') {
+      return historyTransactions;
     }
+
     // Admins see all transactions, so we enrich them with user details.
-    return transactions.map(t => {
+    return historyTransactions.map(t => {
       // Path is like 'users/USER_ID/tokenTransactions/TRANSACTION_ID'
       const userId = t.path?.split('/')[1];
       const transactionUser = users.find(u => u.id === userId);
       return { ...t, user: transactionUser };
     });
-  }, [isLoading, transactions, users, userProfile, user]);
+  }, [isLoading, historyTransactions, users, userProfile]);
 
   return (
     <div className="w-full space-y-8">
@@ -274,7 +276,7 @@ export default function BillingPage() {
             <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {isLoadingProfile || isLoadingTransactions ? (
+            {isLoadingProfile || isLoadingMyTransactions ? (
               <Skeleton className="h-8 w-32" />
             ) : (
               <div className="text-2xl font-bold">{currentBalance.toLocaleString()} Tokens</div>
@@ -285,118 +287,119 @@ export default function BillingPage() {
           </CardContent>
         </Card>
 
-        { userProfile?.role !== 'Admin' && (
-             <Card className="lg:col-span-2">
-                <CardHeader>
-                    <CardTitle>Redeem Activation Code</CardTitle>
-                    <CardDescription>
-                    Enter an activation code to add tokens to your wallet.
-                    </CardDescription>
-                </CardHeader>
-                <Form {...redeemCodeForm}>
-                    <form onSubmit={redeemCodeForm.handleSubmit(handleRedeemCode)}>
-                        <CardContent>
-                            <FormField
-                                control={redeemCodeForm.control}
-                                name="code"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Activation Code</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="Enter your code" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                        </CardContent>
-                        <CardFooter>
-                            <Button type="submit" disabled={redeemCodeForm.formState.isSubmitting}>
-                                <Ticket className="mr-2 h-4 w-4" /> Redeem Code
-                            </Button>
-                        </CardFooter>
-                    </form>
-                </Form>
-             </Card>
-        )}
-
-        { isLoading ? (
-            <Card className="lg:col-span-2">
-                <CardHeader>
-                    <Skeleton className="h-6 w-32" />
-                    <Skeleton className="h-4 w-48" />
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-10 w-full" />
+        {userProfile?.role !== 'Admin' && (
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Redeem Activation Code</CardTitle>
+              <CardDescription>
+                Enter an activation code to add tokens to your wallet.
+              </CardDescription>
+            </CardHeader>
+            <Form {...redeemCodeForm}>
+              <form onSubmit={redeemCodeForm.handleSubmit(handleRedeemCode)}>
+                <CardContent>
+                  <FormField
+                    control={redeemCodeForm.control}
+                    name="code"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Activation Code</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter your code" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </CardContent>
                 <CardFooter>
-                    <Skeleton className="h-10 w-40" />
+                  <Button type="submit" disabled={redeemCodeForm.formState.isSubmitting}>
+                    <Ticket className="mr-2 h-4 w-4" /> Redeem Code
+                  </Button>
                 </CardFooter>
-            </Card>
-        ) : userProfile?.role === 'Admin' && (
-            <Card className="lg:col-span-2">
+              </form>
+            </Form>
+          </Card>
+        )}
+
+        {isLoading ? (
+          <Card className="lg:col-span-2">
             <CardHeader>
-                <CardTitle>Top-up Tokens</CardTitle>
-                <CardDescription>
+              <Skeleton className="h-6 w-32" />
+              <Skeleton className="h-4 w-48" />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </CardContent>
+            <CardFooter>
+              <Skeleton className="h-10 w-40" />
+            </CardFooter>
+          </Card>
+        ) : userProfile?.role === 'Admin' && (
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Top-up Tokens</CardTitle>
+              <CardDescription>
                 Add tokens to a user's wallet. 1 Token = 0.01 THB.
-                </CardDescription>
+              </CardDescription>
             </CardHeader>
             <Form {...topUpForm}>
-                <form onSubmit={topUpForm.handleSubmit(handleTopUp)}>
+              <form onSubmit={topUpForm.handleSubmit(handleTopUp)}>
                 <CardContent className="space-y-4">
-                     <FormField
-                      control={topUpForm.control}
-                      name="userId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>User</FormLabel>
-                           <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select a user to top-up" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {users?.map(user => (
-                                <SelectItem key={user.id} value={user.id}>{user.username || user.email}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
+                  <FormField
+                    control={topUpForm.control}
+                    name="userId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>User</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value ?? ''}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a user to top-up" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {users?.map(user => (
+                              <SelectItem key={user.id} value={user.id}>{user.username || user.email}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
                     control={topUpForm.control}
                     name="amount"
                     render={({ field }) => (
-                        <FormItem>
+                      <FormItem>
                         <FormLabel>Amount</FormLabel>
                         <FormControl>
-                            <div className="relative">
-                                <Input
-                                    type="number"
-                                    placeholder="1000"
-                                    {...field}
-                                    onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
-                                    className="pl-4"
-                                />
-                            </div>
+                          <div className="relative">
+                            <Input
+                              type="number"
+                              placeholder="1000"
+                              {...field}
+                              value={field.value ?? ''}
+                              onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                              className="pl-4"
+                            />
+                          </div>
                         </FormControl>
                         <FormMessage />
-                        </FormItem>
+                      </FormItem>
                     )}
-                    />
+                  />
                 </CardContent>
                 <CardFooter>
-                    <Button type="submit" disabled={topUpForm.formState.isSubmitting}>
+                  <Button type="submit" disabled={topUpForm.formState.isSubmitting}>
                     <CreditCard className="mr-2 h-4 w-4" /> Top-up Tokens
-                    </Button>
+                  </Button>
                 </CardFooter>
-                </form>
+              </form>
             </Form>
-            </Card>
+          </Card>
         )}
       </div>
 
@@ -404,7 +407,7 @@ export default function BillingPage() {
         <CardHeader>
           <CardTitle>Transaction History</CardTitle>
           <CardDescription>
-            {userProfile?.role === 'Admin' 
+            {userProfile?.role === 'Admin'
               ? 'A record of all token transactions in the system.'
               : 'A record of your token transactions.'
             }
@@ -432,6 +435,12 @@ export default function BillingPage() {
                     <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
                   </TableRow>
                 ))
+              ) : historyError ? (
+                <TableRow>
+                  <TableCell colSpan={userProfile?.role === 'Admin' ? 5 : 4} className="text-center text-destructive">
+                    Error loading transactions. {userProfile?.role === 'Admin' && "Please ensure the 'tokenTransactions' collection group index is enabled in Firebase."}
+                  </TableCell>
+                </TableRow>
               ) : enrichedTransactions && enrichedTransactions.length > 0 ? (
                 enrichedTransactions.map((t) => (
                   <TableRow key={t.id}>
@@ -441,15 +450,15 @@ export default function BillingPage() {
                         : 'Date not available'}
                     </TableCell>
                     {userProfile?.role === 'Admin' && (
-                       <TableCell>
-                         <div className="flex items-center gap-2">
-                           <Avatar className="h-6 w-6" data-ai-hint="person face">
-                             <AvatarImage src={`https://picsum.photos/seed/${t.user?.id}/30/30`} />
-                             <AvatarFallback>{t.user?.username?.charAt(0) || 'U'}</AvatarFallback>
-                           </Avatar>
-                           <span>{t.user?.username || t.user?.email || 'N/A'}</span>
-                         </div>
-                       </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-6 w-6" data-ai-hint="person face">
+                            <AvatarImage src={`https://picsum.photos/seed/${t.user?.id}/30/30`} />
+                            <AvatarFallback>{t.user?.username?.charAt(0) || 'U'}</AvatarFallback>
+                          </Avatar>
+                          <span>{t.user?.username || t.user?.email || 'N/A'}</span>
+                        </div>
+                      </TableCell>
                     )}
                     <TableCell>{t.description || 'N/A'}</TableCell>
                     <TableCell>
@@ -458,7 +467,7 @@ export default function BillingPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className={`text-right font-mono ${t.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {t.amount > 0 ? '+' : ''}{t.amount.toLocaleString()}
+                      {t.amount > 0 ? '+' : ''}{t.amount.toLocaleString()}
                     </TableCell>
                   </TableRow>
                 ))

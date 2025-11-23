@@ -18,6 +18,8 @@ import {
   increment,
 } from 'firebase/firestore';
 import { useCollection, useFirestore, useUser, useMemoFirebase, useDoc } from '@/firebase';
+import { getUserTokenBalance } from '@/lib/tokens';
+import { calculateCourseProgress, getNextAction } from '@/lib/lesson-progress';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -95,7 +97,7 @@ export default function CoursesPage() {
     [firestore]
   );
   const { data: courses, isLoading: isLoadingCourses } = useCollection(coursesQuery);
-  
+
   const enrollmentsQuery = useMemoFirebase(
     () =>
       firestore && user
@@ -104,7 +106,7 @@ export default function CoursesPage() {
     [firestore, user]
   );
   const { data: enrollments, isLoading: isLoadingEnrollments } = useCollection(enrollmentsQuery);
-  
+
   const enrolledCourseIds = useMemo(() => {
     if (!enrollments) return new Set();
     return new Set(enrollments.map(e => e.courseId));
@@ -136,7 +138,7 @@ export default function CoursesPage() {
     setSelectedCourse(course);
     setDeleteDialogOpen(true);
   };
-  
+
   const handleEnroll = async (course: any) => {
     if (!firestore || !user || !userProfile) {
       toast({ variant: 'destructive', title: 'Error', description: 'You must be logged in to enroll.' });
@@ -144,49 +146,61 @@ export default function CoursesPage() {
     }
 
     const coursePrice = course.price || 0;
-    
-    // Quick check to prevent unnecessary Firestore reads
-    // Note: A more robust solution would involve checking the actual balance from transactions.
-    // This is a simplified check. A full implementation would re-calculate balance or use a balance field.
-    const hasEnoughTokens = true; // Simplified for now.
-    
-    if (!hasEnoughTokens) {
-      toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You do not have enough tokens to enroll in this course.' });
-      return;
-    }
-    
+
     try {
+      // 1. Check token balance if course is paid
+      if (coursePrice > 0) {
+        const currentBalance = await getUserTokenBalance(firestore, user.uid);
+
+        if (currentBalance < coursePrice) {
+          toast({
+            variant: 'destructive',
+            title: 'Insufficient Tokens',
+            description: `You need ${coursePrice} tokens to enroll. Your current balance is ${currentBalance} tokens.`
+          });
+          return;
+        }
+      }
+
       const batch = writeBatch(firestore);
 
-      // 1. Create Enrollment
+      // 2. Create Enrollment
       const enrollmentRef = doc(collection(firestore, 'enrollments'));
       batch.set(enrollmentRef, {
         userId: user.uid,
         courseId: course.id,
-        enrollmentDate: serverTimestamp(),
-        approved: true, // Auto-approve on purchase
+        enrolledAt: serverTimestamp(),
+        status: 'active',
+        progress: 0,
       });
 
-      // 2. Create Token Transaction
-      const transactionRef = doc(collection(firestore, 'users', user.uid, 'tokenTransactions'));
-      batch.set(transactionRef, {
-        userId: user.uid,
-        amount: -coursePrice,
-        transactionType: 'purchase',
-        timestamp: serverTimestamp(),
-        description: `Enrolled in course: ${course.name}`,
-      });
-      
-      // 3. Increment enrollment count on the course
+      // 3. Create Token Transaction (if paid course)
+      if (coursePrice > 0) {
+        const transactionRef = doc(collection(firestore, 'users', user.uid, 'tokenTransactions'));
+        batch.set(transactionRef, {
+          amount: -coursePrice,
+          type: 'deduction',
+          description: `Enrolled in course: ${course.name}`,
+          courseId: course.id,
+          timestamp: serverTimestamp(),
+        });
+      }
+
+      // 4. Increment enrollment count on the course
       const courseRef = doc(firestore, 'courses', course.id);
       batch.update(courseRef, { enrollment_count: increment(1) });
-      
+
       await batch.commit();
-      
-      toast({ title: 'Enrollment Successful!', description: `You have successfully enrolled in ${course.name}.` });
-      
-    } catch(error: any) {
-       toast({ variant: 'destructive', title: 'Enrollment Failed', description: error.message });
+
+      toast({
+        title: 'Enrollment Successful!',
+        description: coursePrice > 0
+          ? `You have successfully enrolled in ${course.name}. ${coursePrice} tokens have been deducted.`
+          : `You have successfully enrolled in ${course.name}.`
+      });
+
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Enrollment Failed', description: error.message });
     }
   };
 
@@ -240,7 +254,7 @@ export default function CoursesPage() {
       setDeleteDialogOpen(false);
     }
   };
-  
+
   const canManageCourses = userProfile?.role === 'Admin' || userProfile?.role === 'Instructor';
   const isStudent = userProfile?.role === 'Student';
 
@@ -264,18 +278,18 @@ export default function CoursesPage() {
       {isLoadingCourses || isLoadingProfile || isLoadingEnrollments ? (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
-             <Card key={i}>
-                <CardHeader>
-                    <Skeleton className="h-40 w-full" />
-                </CardHeader>
-                <CardContent>
-                    <Skeleton className="h-6 w-3/4 mb-2" />
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-5/6 mt-1" />
-                </CardContent>
-                <CardFooter>
-                    <Skeleton className="h-10 w-24" />
-                </CardFooter>
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-40 w-full" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-6 w-3/4 mb-2" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-5/6 mt-1" />
+              </CardContent>
+              <CardFooter>
+                <Skeleton className="h-10 w-24" />
+              </CardFooter>
             </Card>
           ))}
         </div>
@@ -283,7 +297,7 @@ export default function CoursesPage() {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {courses.map((course) => {
             const isEnrolled = enrolledCourseIds.has(course.id);
-            return(
+            return (
               <Card key={course.id} className="flex flex-col">
                 <CardHeader className="p-0">
                   <div className="relative h-40 w-full">
@@ -304,20 +318,36 @@ export default function CoursesPage() {
                   </CardDescription>
                 </CardContent>
                 <CardFooter className="p-4 flex justify-between items-center">
-                   {isStudent ? (
-                      isEnrolled ? (
-                          <Button asChild className="w-full">
-                              <Link href={`/courses/${course.id}`}>View Course</Link>
+                  {isStudent ? (
+                    (() => {
+                      const enrollment = enrollments?.find((e) => e.courseId === course.id);
+                      const isEnrolled = !!enrollment;
+
+                      // We don't have modules data here, so we pass empty array
+                      // The utility will fallback to linking to course details
+                      const progress = calculateCourseProgress(enrollment, []);
+                      const nextAction = getNextAction(course.id, isEnrolled, progress, []);
+
+                      if (isEnrolled) {
+                        return (
+                          <Button asChild className="w-full" variant={nextAction.type === 'continue' ? 'secondary' : 'default'}>
+                            <Link href={nextAction.link}>
+                              {nextAction.label}
+                            </Link>
                           </Button>
-                      ) : (
+                        );
+                      } else {
+                        return (
                           <Button className="w-full" onClick={() => handleEnroll(course)}>
-                              <ShoppingCart className="mr-2 h-4 w-4" /> Enroll Now ({course.price || 0} Tokens)
+                            <ShoppingCart className="mr-2 h-4 w-4" /> Enroll Now ({course.price || 0} Tokens)
                           </Button>
-                      )
+                        );
+                      }
+                    })()
                   ) : (
-                      <Button asChild>
-                          <Link href={`/courses/${course.id}`}>View Course</Link>
-                      </Button>
+                    <Button asChild>
+                      <Link href={`/courses/${course.id}`}>View Course</Link>
+                    </Button>
                   )}
                   {(userProfile?.role === 'Admin' || (userProfile?.role === 'Instructor' && course.instructorId === user?.uid)) && (
                     <DropdownMenu>
@@ -343,20 +373,21 @@ export default function CoursesPage() {
                   )}
                 </CardFooter>
               </Card>
-           )})}
+            )
+          })}
         </div>
       ) : (
         <div className="text-center py-16 border-2 border-dashed rounded-lg">
-            <h2 className="text-xl font-semibold">No Courses Found</h2>
-            <p className="text-muted-foreground mt-2">
+          <h2 className="text-xl font-semibold">No Courses Found</h2>
+          <p className="text-muted-foreground mt-2">
             Get started by creating a new course.
-            </p>
-            {canManageCourses && (
-                 <Button onClick={handleAddCourse} className="mt-4">
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Create Your First Course
-                </Button>
-            )}
+          </p>
+          {canManageCourses && (
+            <Button onClick={handleAddCourse} className="mt-4">
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Create Your First Course
+            </Button>
+          )}
         </div>
       )}
 
@@ -428,16 +459,16 @@ export default function CoursesPage() {
                   Cancel
                 </Button>
                 <Button type="submit" disabled={form.formState.isSubmitting}>
-                    {selectedCourse ? 'Save Changes' : 'Create Course'}
+                  {selectedCourse ? 'Save Changes' : 'Create Course'}
                 </Button>
               </DialogFooter>
             </form>
           </Form>
         </DialogContent>
       </Dialog>
-      
+
       {/* Delete Confirmation Dialog */}
-       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure you want to delete this course?</AlertDialogTitle>

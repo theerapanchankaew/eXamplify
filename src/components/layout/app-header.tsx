@@ -20,6 +20,7 @@ import { collection, query, collectionGroup, doc } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMemo } from 'react';
 import { useDoc } from '@/firebase/firestore/use-doc';
+import { CartIcon } from '@/components/marketplace/CartIcon';
 
 interface AppHeaderProps {
   isLoading?: boolean;
@@ -50,10 +51,10 @@ export function AppHeader({ isLoading }: AppHeaderProps) {
   const { data: transactions, isLoading: isLoadingTokens } = useCollection(transactionsQuery);
 
   const totalUserTokens = useMemo(() => {
-      if (!transactions || !user) return 0;
-      const userTransactions = transactions.filter(t => t.path?.includes(user.uid));
-      return userTransactions.reduce((sum, transaction) => sum + (transaction.amount || 0), 0);
-    },
+    if (!transactions || !user) return 0;
+    const userTransactions = transactions.filter(t => t.path?.includes(user.uid));
+    return userTransactions.reduce((sum, transaction) => sum + (transaction.amount || 0), 0);
+  },
     [transactions, user]
   );
 
@@ -63,7 +64,7 @@ export function AppHeader({ isLoading }: AppHeaderProps) {
       await signOut(auth);
     }
   };
-  
+
   const isDataLoading = isLoading || isLoadingTokens || isLoadingProfile;
   const displayPhotoUrl = userProfile?.photoURL || user?.photoURL || `https://picsum.photos/seed/${user?.uid}/40/40`;
 
@@ -93,11 +94,13 @@ export function AppHeader({ isLoading }: AppHeaderProps) {
             <span className="sr-only">Wallet</span>
           </Button>
           {isDataLoading ? (
-             <Skeleton className="h-5 w-12" />
+            <Skeleton className="h-5 w-12" />
           ) : (
             <span className="font-semibold text-sm">{totalUserTokens.toLocaleString()}</span>
           )}
         </div>
+
+        <CartIcon />
 
         <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
           <Bell className="h-5 w-5" />
@@ -105,7 +108,7 @@ export function AppHeader({ isLoading }: AppHeaderProps) {
         </Button>
 
         {isDataLoading ? (
-            <Skeleton className="h-9 w-9 rounded-full" />
+          <Skeleton className="h-9 w-9 rounded-full" />
         ) : user ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

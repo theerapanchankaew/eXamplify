@@ -1,586 +1,348 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import {
-  collection,
-  query,
-  doc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  serverTimestamp,
-  collectionGroup,
-  writeBatch,
-  getDocs,
-} from 'firebase/firestore';
-import { useCollection, useFirestore, useUser, useMemoFirebase, useDoc } from '@/firebase';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-
-import { Button, buttonVariants } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/hooks/use-toast';
+import { useState, useMemo } from 'react';
+import { useFirestore, useUser, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { collectionGroup, query, doc } from 'firebase/firestore';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Import, MoreHorizontal, PlusCircle } from 'lucide-react';
-
-const examSchema = z.object({
-  name: z.string().min(1, 'Exam name is required.'),
-  description: z.string().min(1, 'Description is required.'),
-  courseId: z.string().min(1, 'You must select a course.'),
-});
-
-const importedExamSchema = z.object({
-  title: z.string().min(1),
-  description: z.string().min(1),
-  questions: z.array(
-    z.object({
-      id: z.string().optional(),
-      type: z.enum(['mcq']),
-      text: z.string().min(1),
-      options: z.array(z.string()).min(2),
-      answer: z.string().min(1),
-      points: z.number().positive(),
-    })
-  ),
-});
-
-
-type ExamFormData = z.infer<typeof examSchema>;
-
-interface ExamWithQuestionCount {
-  id: string;
-  name: string;
-  description: string;
-  courseId: string;
-  questionCount: number;
-}
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
+import {
+  FileQuestion,
+  Clock,
+  Award,
+  Calendar,
+  Search,
+  Filter,
+  TrendingUp,
+  CheckCircle2,
+  XCircle,
+  ShoppingCart
+} from 'lucide-react';
+import Link from 'next/link';
 
 export default function ExamsPage() {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
-  const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [examsWithCounts, setExamsWithCounts] = useState<ExamWithQuestionCount[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'available' | 'completed'>('all');
+  const [sortBy, setSortBy] = useState<'name' | 'date' | 'difficulty'>('name');
 
+  // Fetch user profile
   const userDocRef = useMemoFirebase(
     () => (firestore && user ? doc(firestore, 'users', user.uid) : null),
     [firestore, user]
   );
-  const { data: userProfile, isLoading: isLoadingProfile } = useDoc(userDocRef);
+  const { data: userProfile } = useDoc(userDocRef);
 
-  const coursesQuery = useMemoFirebase(
-    () => (firestore ? query(collection(firestore, 'courses')) : null),
+  // Fetch all exams
+  const examsQuery = useMemoFirebase(
+    () => (firestore ? query(collectionGroup(firestore, 'exams')) : null),
     [firestore]
   );
-  const { data: courses, isLoading: isLoadingCourses } = useCollection(coursesQuery);
+  const { data: exams, isLoading, error } = useCollection(examsQuery);
 
-  const [isExamDialogOpen, setExamDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedExam, setSelectedExam] = useState<any>(null);
-  
-  const userOwnedCourses = useMemo(() => {
-    if (!courses || !user) return [];
-    if (userProfile?.role === 'Admin') return courses;
-    if (userProfile?.role === 'Instructor') {
-        return courses.filter(course => course.instructorId === user.uid);
-    }
-    return [];
-  }, [courses, user, userProfile]);
+  // Fetch exam results
+  const resultsQuery = useMemoFirebase(
+    () => (firestore && user ? query(collectionGroup(firestore, 'examResults')) : null),
+    [firestore, user]
+  );
+  const { data: examResults } = useCollection(resultsQuery);
 
-  useEffect(() => {
-    if (!firestore) return;
-    setIsLoading(true);
+  // Fetch enrollments to check if user has access
+  const enrollmentsQuery = useMemoFirebase(
+    () => (firestore && user ? query(collectionGroup(firestore, 'enrollments')) : null),
+    [firestore, user]
+  );
+  const { data: enrollments } = useCollection(enrollmentsQuery);
 
-    const fetchExamsAndCounts = async () => {
-        try {
-            const examsGroupQuery = query(collectionGroup(firestore, 'exams'));
-            const querySnapshot = await getDocs(examsGroupQuery);
-            
-            const examsData = await Promise.all(
-                querySnapshot.docs.map(async (examDoc) => {
-                    const questionsColRef = collection(examDoc.ref, 'questions');
-                    const questionsSnapshot = await getDocs(questionsColRef);
-                    return {
-                        ...examDoc.data(),
-                        id: examDoc.id,
-                        courseId: examDoc.data().courseId,
-                        questionCount: questionsSnapshot.size,
-                    } as ExamWithQuestionCount;
-                })
-            );
-            setExamsWithCounts(examsData);
-        } catch (error) {
-            console.error("Failed to fetch exams:", error);
-            toast({
-                variant: "destructive",
-                title: "Error",
-                description: "Could not fetch exams. You may not have the required permissions."
-            })
-        } finally {
-             setIsLoading(false);
-        }
-    };
+  // Show error if query failed
+  if (error) {
+    console.error('Error loading exams:', error);
+  }
 
-    fetchExamsAndCounts();
+  // Filter and sort exams
+  const filteredExams = useMemo(() => {
+    if (!exams) return [];
 
-  }, [firestore, toast]);
+    let filtered = exams.filter(exam => {
+      // Search filter
+      if (searchQuery && !exam.name?.toLowerCase().includes(searchQuery.toLowerCase())) {
+        return false;
+      }
 
+      // Status filter
+      if (filterStatus !== 'all') {
+        const hasCompleted = examResults?.some(
+          r => r.examId === exam.id && r.userId === user?.uid
+        );
+        if (filterStatus === 'completed' && !hasCompleted) return false;
+        if (filterStatus === 'available' && hasCompleted) return false;
+      }
 
-  const form = useForm<ExamFormData>({
-    resolver: zodResolver(examSchema),
-    defaultValues: { name: '', description: '', courseId: '' },
-  });
-
-  const handleAddExam = () => {
-    setSelectedExam(null);
-    form.reset({ name: '', description: '', courseId: '' });
-    setExamDialogOpen(true);
-  };
-
-  const handleEditExam = (exam: any) => {
-    setSelectedExam(exam);
-    form.reset({
-      name: exam.name,
-      description: exam.description,
-      courseId: exam.courseId,
+      return true;
     });
-    setExamDialogOpen(true);
-  };
 
-  const handleDeleteExam = (exam: any) => {
-    setSelectedExam(exam);
-    setDeleteDialogOpen(true);
-  };
+    // Sort
+    filtered.sort((a, b) => {
+      if (sortBy === 'name') return (a.name || '').localeCompare(b.name || '');
+      if (sortBy === 'date') return (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0);
+      return 0;
+    });
 
-  const handleExamSubmit = async (data: ExamFormData) => {
-    if (!firestore || !user) return;
+    return filtered;
+  }, [exams, searchQuery, filterStatus, sortBy, examResults, user]);
 
-    try {
-      if (selectedExam) {
-        // Update existing exam
-        const examDocRef = doc(firestore, 'courses', selectedExam.courseId, 'exams', selectedExam.id);
-        await updateDoc(examDocRef, { name: data.name, description: data.description });
-        toast({ title: 'Success', description: 'Exam updated successfully.' });
-      } else {
-        // Create new exam
-        const examsColRef = collection(firestore, 'courses', data.courseId, 'exams');
-        await addDoc(examsColRef, {
-          ...data,
-          createdAt: serverTimestamp(),
-        });
-        toast({ title: 'Success', description: 'Exam created successfully.' });
-      }
-      setExamDialogOpen(false);
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.message,
-      });
-    }
-  };
-
-  const confirmDeleteExam = async () => {
-    if (!firestore || !selectedExam) return;
-
-    try {
-      const examDocRef = doc(firestore, 'courses', selectedExam.courseId, 'exams', selectedExam.id);
-      await deleteDoc(examDocRef);
-      // This will trigger a re-fetch via useEffect, no need to manually update state
-      setExamsWithCounts(prev => prev.filter(exam => exam.id !== selectedExam.id));
-      toast({
-        title: 'Success',
-        description: 'Exam deleted successfully.',
-      });
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.message,
-      });
-    } finally {
-      setDeleteDialogOpen(false);
-    }
-  };
-
-  const handleImportClick = () => {
-    if (userOwnedCourses.length === 0) {
-        toast({
-            variant: 'destructive',
-            title: 'No Courses Available',
-            description: 'You must own at least one course to import an exam. Please create a course first.',
-        });
-        return;
-    }
-    fileInputRef.current?.click();
-  };
-
-  const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!firestore || !user || userOwnedCourses.length === 0) return;
-    const file = event.target.files?.[0];
-    if (!file) return;
-  
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const content = e.target?.result;
-        if (typeof content !== 'string') throw new Error('Failed to read file content.');
-        
-        const parsedJson = JSON.parse(content);
-        const validatedExam = importedExamSchema.parse(parsedJson);
-  
-        // For simplicity, we'll assign the imported exam to the user's first owned course.
-        // A better UX would be to ask the user to select a course.
-        const targetCourseId = userOwnedCourses[0].id;
-  
-        const batch = writeBatch(firestore);
-        
-        // 1. Create the new exam document
-        const examsColRef = collection(firestore, 'courses', targetCourseId, 'exams');
-        const newExamRef = doc(examsColRef);
-        batch.set(newExamRef, {
-          name: validatedExam.title,
-          description: validatedExam.description,
-          courseId: targetCourseId,
-          createdAt: serverTimestamp(),
-        });
-  
-        // 2. Create all the question documents within the new exam
-        const questionsColRef = collection(newExamRef, 'questions');
-        validatedExam.questions.forEach(q => {
-          const newQuestionRef = doc(questionsColRef);
-          batch.set(newQuestionRef, {
-            text: q.text,
-            type: 'Multiple Choice', // Convert from 'mcq'
-            options: q.options,
-            answer: q.answer,
-            points: q.points,
-            examId: newExamRef.id,
-            createdAt: serverTimestamp(),
-          });
-        });
-  
-        await batch.commit();
-        
-        toast({
-          title: 'Import Successful',
-          description: `Exam "${validatedExam.title}" with ${validatedExam.questions.length} questions has been imported.`,
-        });
-
-        // Optional: Redirect user to the newly created exam page
-        router.push(`/exams/${newExamRef.id}?courseId=${targetCourseId}`);
-  
-      } catch (error: any) {
-        let description = 'An unknown error occurred.';
-        if (error instanceof z.ZodError) {
-          description = 'JSON format is invalid. Please check the file structure and content.';
-        } else if (error instanceof SyntaxError) {
-          description = 'Invalid JSON file. Please ensure the file is correctly formatted.';
-        } else {
-          description = error.message;
-        }
-        toast({
-          variant: 'destructive',
-          title: 'Import Failed',
-          description: description,
-        });
-      } finally {
-        if(fileInputRef.current) fileInputRef.current.value = '';
-      }
-    };
-    reader.readAsText(file);
-  };
-  
-  const canManageExams = userProfile?.role === 'Admin' || userProfile?.role === 'Instructor';
-  const pageIsLoading = isLoading || isLoadingProfile || isLoadingCourses;
+  if (isLoading) {
+    return (
+      <div className="container mx-auto py-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[...Array(6)].map((_, i) => (
+            <Skeleton key={i} className="h-[300px] rounded-xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="w-full">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold">Exams</h1>
-          <p className="text-muted-foreground">
-            Browse, create, and manage your question-based assessments.
-          </p>
-        </div>
-        {canManageExams && (
-          <div className="flex items-center gap-2">
-            <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileImport}
-                accept=".json"
-                className="hidden"
-            />
-            <Button variant="outline" onClick={handleImportClick}>
-                <Import className="mr-2 h-4 w-4" />
-                Import Exam
-            </Button>
-            <Button onClick={handleAddExam}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Create Exam
-            </Button>
-          </div>
-        )}
+    <div className="container mx-auto py-10 space-y-8">
+      {/* Header */}
+      <div className="space-y-2">
+        <h1 className="text-4xl font-bold tracking-tight">Exams & Certifications</h1>
+        <p className="text-muted-foreground text-lg">
+          Test your knowledge and earn certificates
+        </p>
       </div>
 
-    <Card>
-        <CardHeader>
-            <CardTitle>Exam Bank</CardTitle>
-            <CardDescription>A list of all exams in the system.</CardDescription>
-        </CardHeader>
-        <CardContent>
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead className="w-[30%]">Exam Name</TableHead>
-                        <TableHead>Course</TableHead>
-                        <TableHead>Questions</TableHead>
-                        <TableHead className="hidden md:table-cell w-[30%]">Description</TableHead>
-                        <TableHead><span className="sr-only">Actions</span></TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                     {pageIsLoading ? (
-                        Array.from({ length: 5 }).map((_, i) => (
-                        <TableRow key={i}>
-                            <TableCell><Skeleton className="h-5 w-48" /></TableCell>
-                            <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                            <TableCell><Skeleton className="h-5 w-12" /></TableCell>
-                            <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-full" /></TableCell>
-                            <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
-                        </TableRow>
-                        ))
-                    ) : examsWithCounts && examsWithCounts.length > 0 ? (
-                        examsWithCounts.map((exam) => {
-                            const canManageThisExam = userProfile?.role === 'Admin' || userOwnedCourses.some(c => c.id === exam.courseId);
-                            const courseName = courses?.find(c => c.id === exam.courseId)?.name || 'N/A';
-                            return (
-                                <TableRow key={exam.id}>
-                                    <TableCell className="font-medium">
-                                        <Link href={`/exams/${exam.id}?courseId=${exam.courseId}`} className="hover:underline">
-                                            {exam.name}
-                                        </Link>
-                                    </TableCell>
-                                    <TableCell>{courseName}</TableCell>
-                                    <TableCell>{exam.questionCount}</TableCell>
-                                    <TableCell className="hidden md:table-cell text-muted-foreground truncate">{exam.description}</TableCell>
-                                    <TableCell className="text-right">
-                                        <div className="flex items-center justify-end gap-2">
-                                            <Button asChild variant="outline" size="sm">
-                                                <Link href={`/exams/${exam.id}?courseId=${exam.courseId}`}>View</Link>
-                                            </Button>
-                                            {canManageThisExam && (
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                    <MoreHorizontal className="h-4 w-4" />
-                                                </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                <DropdownMenuItem onClick={() => handleEditExam(exam)}>
-                                                    Edit Exam
-                                                </DropdownMenuItem>
-                                                <DropdownMenuSeparator />
-                                                <DropdownMenuItem
-                                                    onClick={() => handleDeleteExam(exam)}
-                                                    className="text-red-600"
-                                                >
-                                                    Delete Exam
-                                                </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                            )}
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            )
-                        })
-                    ) : (
-                         <TableRow>
-                            <TableCell colSpan={5} className="h-24 text-center">
-                                No exams found.
-                            </TableCell>
-                        </TableRow>
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-primary/10 rounded-lg">
+                <FileQuestion className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold">{exams?.length || 0}</div>
+                <div className="text-sm text-muted-foreground">Total Exams</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-green-500/10 rounded-lg">
+                <CheckCircle2 className="h-6 w-6 text-green-600" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold">
+                  {examResults?.filter(r => r.userId === user?.uid && r.passed).length || 0}
+                </div>
+                <div className="text-sm text-muted-foreground">Passed</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-amber-500/10 rounded-lg">
+                <Award className="h-6 w-6 text-amber-600" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold">
+                  {examResults?.filter(r => r.userId === user?.uid && r.certificateIssued).length || 0}
+                </div>
+                <div className="text-sm text-muted-foreground">Certificates</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search exams..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
+        <Select value={filterStatus} onValueChange={(v: any) => setFilterStatus(v)}>
+          <SelectTrigger className="w-[180px]">
+            <Filter className="mr-2 h-4 w-4" />
+            <SelectValue placeholder="Filter" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Exams</SelectItem>
+            <SelectItem value="available">Available</SelectItem>
+            <SelectItem value="completed">Completed</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Sort by" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="name">Name</SelectItem>
+            <SelectItem value="date">Date Added</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Results Count */}
+      <div className="text-sm text-muted-foreground">
+        Showing {filteredExams.length} {filteredExams.length === 1 ? 'exam' : 'exams'}
+      </div>
+
+      {/* Exams Grid */}
+      {filteredExams.length === 0 ? (
+        <div className="text-center py-20">
+          <FileQuestion className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+          <h3 className="text-xl font-semibold mb-2">No exams found</h3>
+          <p className="text-muted-foreground">Try adjusting your search or filters</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredExams.map((exam) => {
+            const examResult = examResults?.find(r => r.examId === exam.id && r.userId === user?.uid);
+            const enrollment = enrollments?.find(e => e.courseId === exam.courseId && e.userId === user?.uid);
+            const hasCompleted = !!examResult;
+            const hasPassed = examResult?.passed;
+
+            return (
+              <Card key={exam.id} className="flex flex-col hover:shadow-lg transition-all group">
+                <CardHeader>
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
+                      <FileQuestion className="h-5 w-5 text-primary" />
+                    </div>
+                    {hasCompleted && (
+                      <Badge variant={hasPassed ? 'default' : 'secondary'}>
+                        {hasPassed ? (
+                          <><CheckCircle2 className="mr-1 h-3 w-3" /> Passed</>
+                        ) : (
+                          <><XCircle className="mr-1 h-3 w-3" /> Failed</>
+                        )}
+                      </Badge>
                     )}
-                </TableBody>
-            </Table>
-        </CardContent>
-    </Card>
+                  </div>
+                  <CardTitle className="line-clamp-2">{exam.name}</CardTitle>
+                  <CardDescription className="line-clamp-3">
+                    {exam.description || 'No description available'}
+                  </CardDescription>
+                </CardHeader>
 
-      {/* Exam Creation/Editing Dialog */}
-      <Dialog open={isExamDialogOpen} onOpenChange={setExamDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {selectedExam ? 'Edit Exam' : 'Create a New Exam'}
-            </DialogTitle>
-            <DialogDescription>
-              Fill in the details below to {selectedExam ? 'update your' : 'set up a new'} exam.
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form
-              onSubmit={form.handleSubmit(handleExamSubmit)}
-              className="space-y-4"
-            >
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Exam Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., Mid-term Web Dev Exam" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Exam Description</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Describe what this exam covers..."
-                        className="resize-none"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-               <FormField
-                  control={form.control}
-                  name="courseId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Course</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!selectedExam}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a course for this exam" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {userOwnedCourses.length > 0 ? (
-                            userOwnedCourses.map(course => (
-                              <SelectItem key={course.id} value={course.id}>{course.name}</SelectItem>
-                            ))
-                          ) : (
-                            <div className="p-4 text-sm text-muted-foreground">
-                                You don't own any courses. Please create a course first.
-                            </div>
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
+                <CardContent className="flex-1 space-y-3">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Clock className="h-4 w-4" />
+                    <span>{exam.duration || 60} minutes</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <TrendingUp className="h-4 w-4" />
+                    <span>Passing: {exam.passingScore || 70}%</span>
+                  </div>
+                  {exam.price && (
+                    <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                      <Award className="h-4 w-4" />
+                      <span>{exam.price} tokens</span>
+                    </div>
                   )}
-                />
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setExamDialogOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={form.formState.isSubmitting}>
-                    {selectedExam ? 'Save Changes' : 'Create Exam'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-      
-      {/* Delete Confirmation Dialog */}
-       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to delete this exam?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the exam and all its associated questions.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteExam} className={buttonVariants({ variant: "destructive" })}>
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+                </CardContent>
 
+                <CardFooter className="flex gap-2">
+                  {hasCompleted ? (
+                    // Already completed - show results
+                    <Button asChild className="flex-1">
+                      <Link href={`/exams/${exam.id}`}>
+                        View Results
+                      </Link>
+                    </Button>
+                  ) : enrollment ? (
+                    // Enrolled but not completed - can start exam
+                    <>
+                      <Button asChild className="flex-1">
+                        <Link href={`/exams/${exam.id}/take`}>
+                          Start Exam
+                        </Link>
+                      </Button>
+                      <Button variant="outline" asChild>
+                        <Link href={`/exams/${exam.id}/schedule`}>
+                          <Calendar className="h-4 w-4 mr-1" />
+                          Schedule
+                        </Link>
+                      </Button>
+                    </>
+                  ) : (
+                    // Not enrolled - show add to cart
+                    <>
+                      <Button
+                        className="flex-1"
+                        onClick={async () => {
+                          if (!firestore || !user) {
+                            toast({
+                              variant: 'destructive',
+                              title: 'Error',
+                              description: 'You must be logged in.',
+                            });
+                            return;
+                          }
+
+                          try {
+                            const { addToCart } = await import('@/lib/marketplace');
+                            await addToCart(
+                              firestore,
+                              user.uid,
+                              'exam',
+                              exam.id,
+                              exam.name,
+                              exam.price || 0,
+                              exam.description
+                            );
+
+                            toast({
+                              title: 'Added to Cart',
+                              description: `${exam.name} has been added to your cart.`,
+                            });
+                          } catch (error: any) {
+                            toast({
+                              variant: 'destructive',
+                              title: 'Error',
+                              description: error.message || 'Failed to add to cart.',
+                            });
+                          }
+                        }}
+                      >
+                        <ShoppingCart className="h-4 w-4 mr-1" />
+                        Add to Cart
+                      </Button>
+                      <Button variant="outline" asChild>
+                        <Link href={`/exams/${exam.id}`}>
+                          Details
+                        </Link>
+                      </Button>
+                    </>
+                  )}
+                </CardFooter>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

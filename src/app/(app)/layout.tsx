@@ -3,6 +3,7 @@
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { AppHeader } from '@/components/layout/app-header';
+import { AppBreadcrumb } from '@/components/layout/app-breadcrumb';
 import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -37,13 +38,14 @@ export default function AppLayoutClient({
   return (
     <SidebarProvider>
       <div className="group/sidebar-wrapper flex min-h-svh w-full has-[[data-variant=inset]]:bg-sidebar">
-          <AppSidebar isLoading={isUserLoading} />
-          <SidebarInset>
-            <AppHeader isLoading={isUserLoading} />
-            <main className="flex-1 p-4 md:p-6 lg:p-8">
-              {children}
-            </main>
-          </SidebarInset>
+        <AppSidebar isLoading={isUserLoading} />
+        <SidebarInset>
+          <AppHeader isLoading={isUserLoading} />
+          <AppBreadcrumb />
+          <main className="flex-1 p-4 md:p-6 lg:p-8">
+            {children}
+          </main>
+        </SidebarInset>
       </div>
     </SidebarProvider>
   );
