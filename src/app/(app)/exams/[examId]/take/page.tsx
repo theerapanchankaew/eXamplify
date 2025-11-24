@@ -21,6 +21,8 @@ export default function TakeExamPage() {
     const firestore = useFirestore();
     const router = useRouter();
 
+    const [resolvedCourseId, setResolvedCourseId] = useState<string | null>(courseId);
+
     const [accessCheck, setAccessCheck] = useState<{
         loading: boolean;
         canAccess: boolean;
@@ -52,6 +54,11 @@ export default function TakeExamPage() {
                 examName: result.examName,
             });
 
+            // If we found a courseId from the access check and didn't have one, use it
+            if (result.courseId && !resolvedCourseId) {
+                setResolvedCourseId(result.courseId);
+            }
+
             // Redirect if no access
             if (!result.canAccess) {
                 setTimeout(() => {
@@ -61,25 +68,25 @@ export default function TakeExamPage() {
         }
 
         verifyAccess();
-    }, [firestore, user, examId, router]);
+    }, [firestore, user, examId, router, resolvedCourseId]);
 
     // Exam Data
     const examDocRef = useMemoFirebase(
         () =>
-            firestore && courseId && examId
-                ? doc(firestore, 'courses', courseId as string, 'exams', examId as string)
+            firestore && resolvedCourseId && examId
+                ? doc(firestore, 'courses', resolvedCourseId, 'exams', examId as string)
                 : null,
-        [firestore, courseId, examId]
+        [firestore, resolvedCourseId, examId]
     );
     const { data: exam, isLoading: isLoadingExam } = useDoc(examDocRef);
 
     // Questions Data
     const questionsQuery = useMemoFirebase(
         () =>
-            firestore && courseId && examId
-                ? query(collection(firestore, 'courses', courseId as string, 'exams', examId as string, 'questions'))
+            firestore && resolvedCourseId && examId
+                ? query(collection(firestore, 'courses', resolvedCourseId, 'exams', examId as string, 'questions'))
                 : null,
-        [firestore, courseId, examId]
+        [firestore, resolvedCourseId, examId]
     );
     const { data: questions, isLoading: isLoadingQuestions } = useCollection(questionsQuery);
 
