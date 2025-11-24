@@ -103,7 +103,12 @@ export default function CommunityPage() {
                     <Card className="border-destructive/50 bg-destructive/10">
                         <CardContent className="pt-6 text-center text-destructive">
                             <p>Error loading posts. Please try again later.</p>
-                            <p className="text-xs opacity-70 mt-2">{error.message}</p>
+                            <p className="text-xs opacity-70 mt-2 font-mono break-all">{error.message}</p>
+                            {error.message.includes('index') && (
+                                <p className="text-xs mt-2 font-bold">
+                                    This query requires a Firestore index. Check the console or the error message above for a link to create it.
+                                </p>
+                            )}
                         </CardContent>
                     </Card>
                 ) : posts && posts.length > 0 ? (
