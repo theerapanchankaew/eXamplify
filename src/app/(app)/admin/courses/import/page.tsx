@@ -142,8 +142,49 @@ export default function CourseImportPage() {
                     <Card>
                         <CardHeader>
                             <CardTitle>1. Upload or Paste JSON</CardTitle>
-                            <CardDescription>
-                                Select a .json file or paste the content directly.
+                            <CardDescription className="flex justify-between items-center">
+                                <span>Select a .json file or paste the content directly.</span>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs"
+                                    onClick={() => {
+                                        const template = {
+                                            "version": "1.0",
+                                            "course": {
+                                                "name": "Example Course Title",
+                                                "description": "Course description goes here...",
+                                                "price": 0,
+                                                "tags": ["Tag1", "Tag2"],
+                                                "level": "beginner",
+                                                "modules": [
+                                                    {
+                                                        "name": "Module 1",
+                                                        "chapters": [
+                                                            {
+                                                                "name": "Chapter 1",
+                                                                "lessons": [
+                                                                    {
+                                                                        "title": "Lesson 1",
+                                                                        "content": "# Hello World",
+                                                                        "type": "text",
+                                                                        "duration": 10
+                                                                    }
+                                                                ]
+                                                            }
+                                                        ]
+                                                    }
+                                                ]
+                                            }
+                                        };
+                                        const content = JSON.stringify(template, null, 2);
+                                        setJsonContent(content);
+                                        validateJson(content);
+                                    }}
+                                >
+                                    <FileJson className="mr-2 h-3 w-3" />
+                                    Load Example Template
+                                </Button>
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
