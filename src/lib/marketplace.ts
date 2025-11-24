@@ -255,15 +255,27 @@ export async function processCheckout(
             } else if (item.itemType === 'exam') {
                 // For exams, we need to find the courseId first
                 // Exams are stored as subcollections under courses
-                // The itemId format should be: courseId/exams/examId
-                // But since we're storing just examId in cart, we need to get the exam doc to find courseId
+                // We need to search for the exam to find its courseId
 
-                // Create enrollment using exam's courseId
-                // Note: The exam access check (canAccessExam) will verify enrollment exists
+                // Try to find the exam's courseId by searching all courses
+                const coursesSnapshot = await getDocs(collection(firestore, 'courses'));
+                let examCourseId = null;
+
+                for (const courseDoc of coursesSnapshot.docs) {
+                    const examRef = doc(firestore, 'courses', courseDoc.id, 'exams', item.itemId);
+                    const examSnap = await getDoc(examRef);
+                    if (examSnap.exists()) {
+                        examCourseId = courseDoc.id;
+                        break;
+                    }
+                }
+
+                // Create enrollment with both examId and courseId
                 const enrollmentRef = doc(firestore, 'enrollments', `${userId}_exam_${item.itemId}`);
                 batch.set(enrollmentRef, {
                     userId,
                     examId: item.itemId,
+                    courseId: examCourseId, // Store courseId for easier access
                     enrolledAt: serverTimestamp(),
                     status: 'active',
                     type: 'exam',

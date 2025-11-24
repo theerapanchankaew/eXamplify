@@ -145,13 +145,14 @@ export default function CheckoutPage() {
                     if (item.itemType === 'course') {
                         router.push(`/courses/${item.itemId}`);
                     } else if (item.itemType === 'exam') {
-                        // Redirect to exams page where user can start the exam
-                        router.push('/exams');
+                        // For exams, we need to get the courseId from the exam document
+                        // Since we just purchased it, redirect to exams list where they can start it
+                        router.push(`/exams`);
                     } else {
                         router.push('/courses');
                     }
                 } else {
-                    // Multiple items - go to exams page if any exam, otherwise courses
+                    // Multiple items - go to courses/exams page
                     const hasExam = cartItems.some(item => item.itemType === 'exam');
                     router.push(hasExam ? '/exams' : '/courses');
                 }

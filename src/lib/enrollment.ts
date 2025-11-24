@@ -53,7 +53,43 @@ export async function canAccessExam(
 
         if (examEnrollmentSnap.exists() && examEnrollmentSnap.data().status === 'active') {
             // User has purchased this exam directly
-            // Still need to find exam details
+            const enrollmentData = examEnrollmentSnap.data();
+            const storedCourseId = enrollmentData.courseId;
+
+            // If we have courseId stored, use it directly
+            if (storedCourseId) {
+                const examRef = doc(firestore, `courses/${storedCourseId}/exams/${examId}`);
+                const examSnap = await getDoc(examRef);
+
+                if (examSnap.exists()) {
+                    const examDoc = examSnap.data();
+
+                    // Check if already completed
+                    const resultsQuery = query(
+                        collection(firestore, 'examResults'),
+                        where('userId', '==', userId),
+                        where('examId', '==', examId)
+                    );
+                    const resultsSnap = await getDocs(resultsQuery);
+
+                    if (!resultsSnap.empty) {
+                        return {
+                            canAccess: false,
+                            reason: 'You have already completed this exam',
+                            courseId: storedCourseId,
+                            examName: examDoc.name,
+                        };
+                    }
+
+                    return {
+                        canAccess: true,
+                        courseId: storedCourseId,
+                        examName: examDoc.name,
+                    };
+                }
+            }
+
+            // Fallback: search for exam if courseId not stored (legacy enrollments)
             const coursesSnap = await getDocs(collection(firestore, 'courses'));
 
             for (const courseDoc of coursesSnap.docs) {
