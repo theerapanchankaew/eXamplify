@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useFirestore, useUser, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { collectionGroup, query, doc } from 'firebase/firestore';
+import { collectionGroup, query, doc, writeBatch, collection, where } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,9 +20,12 @@ import {
   TrendingUp,
   CheckCircle2,
   XCircle,
-  ShoppingCart
+  ShoppingCart,
+  Upload
 } from 'lucide-react';
 import Link from 'next/link';
+import { ExamStatusBadge } from '@/components/exam/ExamStatusBadge';
+import { BookingInfo } from '@/components/exam/BookingInfo';
 
 export default function ExamsPage() {
   const { user } = useUser();
@@ -32,6 +35,7 @@ export default function ExamsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'available' | 'completed'>('all');
   const [sortBy, setSortBy] = useState<'name' | 'date' | 'difficulty'>('name');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch user profile
   const userDocRef = useMemoFirebase(
@@ -60,6 +64,13 @@ export default function ExamsPage() {
     [firestore, user]
   );
   const { data: enrollments } = useCollection(enrollmentsQuery);
+
+  // Fetch user's bookings
+  const bookingsQuery = useMemoFirebase(
+    () => (firestore && user ? query(collection(firestore, 'bookings'), where('userId', '==', user.uid), where('status', '==', 'confirmed')) : null),
+    [firestore, user]
+  );
+  const { data: bookings } = useCollection(bookingsQuery);
 
   // Show error if query failed
   if (error) {
@@ -98,6 +109,75 @@ export default function ExamsPage() {
     return filtered;
   }, [exams, searchQuery, filterStatus, sortBy, examResults, user]);
 
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !firestore || !user) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const json = JSON.parse(e.target?.result as string);
+
+        // Validate JSON structure
+        if (!json.name || !json.courseId || !json.questions || !Array.isArray(json.questions)) {
+          throw new Error('Invalid JSON structure. Must include name, courseId, and questions array.');
+        }
+
+        const batch = writeBatch(firestore);
+
+        // Create Exam Document
+        const examRef = doc(collection(firestore, 'courses', json.courseId, 'exams'));
+        batch.set(examRef, {
+          name: json.name,
+          description: json.description || '',
+          duration: json.duration || 60,
+          passingScore: json.passingScore || 70,
+          price: json.price || 0,
+          courseId: json.courseId,
+          totalQuestions: json.questions.length,
+          createdAt: new Date(),
+          createdBy: user.uid,
+        });
+
+        // Create Questions
+        json.questions.forEach((q: any) => {
+          const questionRef = doc(collection(firestore, 'courses', json.courseId, 'exams', examRef.id, 'questions'));
+          batch.set(questionRef, {
+            text: q.text,
+            type: q.type || 'Multiple Choice',
+            options: q.options || [],
+            correctAnswer: q.correctAnswer, // Store correct answer for server-side grading
+            points: q.points || 1,
+          });
+        });
+
+        await batch.commit();
+
+        toast({
+          title: 'Exam Imported',
+          description: `Successfully imported "${json.name}" with ${json.questions.length} questions.`,
+        });
+
+      } catch (error: any) {
+        console.error('Import error:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Import Failed',
+          description: error.message || 'Failed to parse JSON file.',
+        });
+      } finally {
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
   if (isLoading) {
     return (
       <div className="container mx-auto py-10">
@@ -113,11 +193,28 @@ export default function ExamsPage() {
   return (
     <div className="container mx-auto py-10 space-y-8">
       {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-4xl font-bold tracking-tight">Exams & Certifications</h1>
-        <p className="text-muted-foreground text-lg">
-          Test your knowledge and earn certificates
-        </p>
+      <div className="flex justify-between items-start">
+        <div className="space-y-2">
+          <h1 className="text-4xl font-bold tracking-tight">Exams & Certifications</h1>
+          <p className="text-muted-foreground text-lg">
+            Test your knowledge and earn certificates
+          </p>
+        </div>
+        {(userProfile?.role === 'Admin' || userProfile?.role === 'Instructor') && (
+          <div>
+            <input
+              type="file"
+              accept=".json"
+              className="hidden"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+            />
+            <Button onClick={handleImportClick}>
+              <Upload className="mr-2 h-4 w-4" />
+              Import Exam
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Stats */}
@@ -220,9 +317,45 @@ export default function ExamsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredExams.map((exam) => {
             const examResult = examResults?.find(r => r.examId === exam.id && r.userId === user?.uid);
-            const enrollment = enrollments?.find(e => e.courseId === exam.courseId && e.userId === user?.uid);
+            const courseEnrollment = enrollments?.find(e => e.courseId === exam.courseId && e.userId === user?.uid);
+            const examEnrollment = enrollments?.find(e => e.examId === exam.id && e.userId === user?.uid);
+            const hasEnrollment = courseEnrollment || examEnrollment;
             const hasCompleted = !!examResult;
-            const hasPassed = examResult?.passed;
+
+            // Find booking for this exam
+            const booking = bookings?.find(b => b.examId === exam.id);
+
+            // Calculate exam status
+            const getExamStatus = () => {
+              // Completed states
+              if (examResult) {
+                if (examResult.certificateIssued) {
+                  return { state: 'certified', badge: 'certified' };
+                }
+                if (examResult.passed) {
+                  return { state: 'passed', badge: 'passed' };
+                }
+                return { state: 'failed', badge: 'failed' };
+              }
+
+              // Scheduled states
+              if (booking) {
+                const examTime = booking.date.toDate();
+                const now = new Date();
+                const hoursUntil = (examTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+                if (hoursUntil < 24 && hoursUntil > 0) {
+                  return { state: 'upcoming', badge: 'upcoming' };
+                }
+                if (hoursUntil > 0) {
+                  return { state: 'scheduled', badge: 'scheduled' };
+                }
+              }
+
+              return { state: hasEnrollment ? 'enrolled' : 'not-enrolled', badge: null };
+            };
+
+            const status = getExamStatus();
 
             return (
               <Card key={exam.id} className="flex flex-col hover:shadow-lg transition-all group">
@@ -231,14 +364,8 @@ export default function ExamsPage() {
                     <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
                       <FileQuestion className="h-5 w-5 text-primary" />
                     </div>
-                    {hasCompleted && (
-                      <Badge variant={hasPassed ? 'default' : 'secondary'}>
-                        {hasPassed ? (
-                          <><CheckCircle2 className="mr-1 h-3 w-3" /> Passed</>
-                        ) : (
-                          <><XCircle className="mr-1 h-3 w-3" /> Failed</>
-                        )}
-                      </Badge>
+                    {status.badge && (
+                      <ExamStatusBadge status={status.badge as any} booking={booking} />
                     )}
                   </div>
                   <CardTitle className="line-clamp-2">{exam.name}</CardTitle>
@@ -256,7 +383,10 @@ export default function ExamsPage() {
                     <TrendingUp className="h-4 w-4" />
                     <span>Passing: {exam.passingScore || 70}%</span>
                   </div>
-                  {exam.price && (
+                  {booking && (
+                    <BookingInfo booking={booking} compact />
+                  )}
+                  {exam.price && !hasEnrollment && (
                     <div className="flex items-center gap-2 text-sm font-semibold text-primary">
                       <Award className="h-4 w-4" />
                       <span>{exam.price} tokens</span>
@@ -272,16 +402,31 @@ export default function ExamsPage() {
                         View Results
                       </Link>
                     </Button>
-                  ) : enrollment ? (
-                    // Enrolled but not completed - can start exam
+                  ) : status.state === 'scheduled' || status.state === 'upcoming' ? (
+                    // Scheduled - show start exam and view booking
                     <>
                       <Button asChild className="flex-1">
-                        <Link href={`/exams/${exam.id}/take`}>
+                        <Link href={`/exams/${exam.id}/take?courseId=${exam.courseId}`}>
                           Start Exam
                         </Link>
                       </Button>
                       <Button variant="outline" asChild>
-                        <Link href={`/exams/${exam.id}/schedule`}>
+                        <Link href={`/exams/${exam.id}/schedule?courseId=${exam.courseId}`}>
+                          <Calendar className="h-4 w-4 mr-1" />
+                          Reschedule
+                        </Link>
+                      </Button>
+                    </>
+                  ) : hasEnrollment ? (
+                    // Enrolled (either through course or direct purchase) - can start exam
+                    <>
+                      <Button asChild className="flex-1">
+                        <Link href={`/exams/${exam.id}/take?courseId=${exam.courseId}`}>
+                          Start Exam
+                        </Link>
+                      </Button>
+                      <Button variant="outline" asChild>
+                        <Link href={`/exams/${exam.id}/schedule?courseId=${exam.courseId}`}>
                           <Calendar className="h-4 w-4 mr-1" />
                           Schedule
                         </Link>

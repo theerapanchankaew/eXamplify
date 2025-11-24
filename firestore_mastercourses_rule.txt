@@ -1,0 +1,22 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper Functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isAdmin() {
+      return isSignedIn() && exists(/databases//documents/roles_admin/);
+    }
+    function isInstructor() {
+      let user = get(/databases//documents/roles_admin/);
+      return user.data.role == 'Instructor';
+    }
+    
+    // Master Courses
+    match /masterCourses/{masterCourseId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin() || isInstructor();
+    }
+  }
+}

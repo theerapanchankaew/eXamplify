@@ -47,6 +47,49 @@ export async function canAccessExam(
     examName?: string;
 }> {
     try {
+        // First, check if user has direct exam enrollment (from purchasing exam directly)
+        const examEnrollmentRef = doc(firestore, 'enrollments', `${userId}_exam_${examId}`);
+        const examEnrollmentSnap = await getDoc(examEnrollmentRef);
+
+        if (examEnrollmentSnap.exists() && examEnrollmentSnap.data().status === 'active') {
+            // User has purchased this exam directly
+            // Still need to find exam details
+            const coursesSnap = await getDocs(collection(firestore, 'courses'));
+
+            for (const courseDoc of coursesSnap.docs) {
+                const examRef = doc(firestore, `courses/${courseDoc.id}/exams/${examId}`);
+                const examSnap = await getDoc(examRef);
+
+                if (examSnap.exists()) {
+                    const examDoc = examSnap.data();
+
+                    // Check if already completed
+                    const resultsQuery = query(
+                        collection(firestore, 'examResults'),
+                        where('userId', '==', userId),
+                        where('examId', '==', examId)
+                    );
+                    const resultsSnap = await getDocs(resultsQuery);
+
+                    if (!resultsSnap.empty) {
+                        return {
+                            canAccess: false,
+                            reason: 'You have already completed this exam',
+                            courseId: courseDoc.id,
+                            examName: examDoc.name,
+                        };
+                    }
+
+                    return {
+                        canAccess: true,
+                        courseId: courseDoc.id,
+                        examName: examDoc.name,
+                    };
+                }
+            }
+        }
+
+        // If no direct exam enrollment, check course enrollment (original logic)
         // Find the exam using collectionGroup query
         const examsQuery = query(
             collection(firestore, 'exams'),

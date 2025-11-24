@@ -66,7 +66,7 @@ export const gradeExam = functions.https.onCall(
                 const question = questionDoc.data();
                 const questionId = questionDoc.id;
                 const userAnswer = answers[questionId];
-                const correctAnswer = question.answer;
+                const correctAnswer = question.correctAnswer || question.answer;
                 const points = question.points || 1;
 
                 totalPoints += points;

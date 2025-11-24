@@ -3,7 +3,9 @@
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore'
+import { getFirestore } from 'firebase/firestore';
+import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
+import { connectFirestoreEmulator } from 'firebase/firestore';
 
 // IMPORTANT: DO NOT MODIFY THIS FUNCTION
 export function initializeFirebase() {
@@ -33,10 +35,30 @@ export function initializeFirebase() {
 }
 
 export function getSdks(firebaseApp: FirebaseApp) {
+  const auth = getAuth(firebaseApp);
+  const firestore = getFirestore(firebaseApp);
+  const functions = getFunctions(firebaseApp);
+
+  // Connect to emulators in development
+  if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+    try {
+      // Connect to Functions emulator
+      connectFunctionsEmulator(functions, 'localhost', 5001);
+
+      // Connect to Firestore emulator
+      connectFirestoreEmulator(firestore, 'localhost', 8080);
+
+      console.log('🔧 Connected to Firebase Emulators');
+    } catch (error) {
+      console.warn('Failed to connect to emulators:', error);
+    }
+  }
+
   return {
     firebaseApp,
-    auth: getAuth(firebaseApp),
-    firestore: getFirestore(firebaseApp)
+    auth,
+    firestore,
+    functions,
   };
 }
 

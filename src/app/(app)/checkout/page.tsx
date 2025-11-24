@@ -139,11 +139,21 @@ export default function CheckoutPage() {
                 const newBalance = await getUserTokenBalance(firestore, user.uid);
                 setTokenBalance(newBalance);
 
-                // Redirect to course if single item, otherwise courses list
-                if (cartItems.length === 1 && cartItems[0].itemType === 'course') {
-                    router.push(`/courses/${cartItems[0].itemId}`);
+                // Redirect based on item type
+                if (cartItems.length === 1) {
+                    const item = cartItems[0];
+                    if (item.itemType === 'course') {
+                        router.push(`/courses/${item.itemId}`);
+                    } else if (item.itemType === 'exam') {
+                        // Redirect to exams page where user can start the exam
+                        router.push('/exams');
+                    } else {
+                        router.push('/courses');
+                    }
                 } else {
-                    router.push('/courses');
+                    // Multiple items - go to exams page if any exam, otherwise courses
+                    const hasExam = cartItems.some(item => item.itemType === 'exam');
+                    router.push(hasExam ? '/exams' : '/courses');
                 }
             } else {
                 toast({

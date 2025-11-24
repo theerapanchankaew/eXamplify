@@ -15,6 +15,7 @@ import {
   CreditCard,
   Building,
   ShoppingBag,
+  CalendarClock,
 } from 'lucide-react';
 
 type Role = 'Admin' | 'Instructor' | 'Student';
@@ -40,6 +41,12 @@ const allMenuItems: MenuCategory[] = [
         href: '/users',
         icon: Users,
         roles: ['Admin'],
+      },
+      {
+        label: 'Admin Schedules',
+        href: '/admin/schedules',
+        icon: CalendarClock,
+        roles: ['Admin', 'Instructor'],
       },
       {
         label: 'Reports',

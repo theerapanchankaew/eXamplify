@@ -252,6 +252,22 @@ export async function processCheckout(
                 // Increment enrollment count
                 const courseRef = doc(firestore, 'courses', item.itemId);
                 batch.update(courseRef, { enrollment_count: increment(1) });
+            } else if (item.itemType === 'exam') {
+                // For exams, we need to find the courseId first
+                // Exams are stored as subcollections under courses
+                // The itemId format should be: courseId/exams/examId
+                // But since we're storing just examId in cart, we need to get the exam doc to find courseId
+
+                // Create enrollment using exam's courseId
+                // Note: The exam access check (canAccessExam) will verify enrollment exists
+                const enrollmentRef = doc(firestore, 'enrollments', `${userId}_exam_${item.itemId}`);
+                batch.set(enrollmentRef, {
+                    userId,
+                    examId: item.itemId,
+                    enrolledAt: serverTimestamp(),
+                    status: 'active',
+                    type: 'exam',
+                });
             }
         }
 

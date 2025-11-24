@@ -91,6 +91,17 @@ service cloud.firestore {
       allow update: if (isCourseInstructor(courseId) || isAdmin()) || 
                     (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['enrollment_count']));
       allow delete: if isCourseInstructor(courseId) || isAdmin();
+      
+      match /exams/{examId} {
+        allow get, list: if isSignedIn();
+        allow create: if isAdmin() || isInstructor();
+        allow update, delete: if isAdmin() || isInstructor();
+        
+        match /questions/{questionId} {
+          allow get, list: if isSignedIn();
+          allow create, update, delete: if isAdmin() || isInstructor();
+        }
+      }
     }
 
     match /courses/{courseId}/modules/{moduleId} {
@@ -213,6 +224,15 @@ service cloud.firestore {
     match /course_competencies/{courseCompetencyId} {
       allow get, list: if true;
       allow create, update, delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------------------------
+    // Master Courses (Admin and Instructor Management)
+    // ------------------------------------------------------------------------
+
+    match /masterCourses/{masterCourseId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin() || isInstructor();
     }
 
     match /question_competencies/{questionCompetencyId} {

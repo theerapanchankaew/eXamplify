@@ -7,7 +7,8 @@ import { WebcamMonitor } from './WebcamMonitor';
 import { ArrowRight, ArrowLeft, Timer, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { useFirestore, useUser } from '@/firebase';
+import { useFirestore, useUser, useFunctions } from '@/firebase';
+import { httpsCallable } from 'firebase/functions';
 
 interface Question {
     id: string;
@@ -35,6 +36,7 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
     const { toast } = useToast();
     const firestore = useFirestore();
     const { user } = useUser();
+    const functions = useFunctions();
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [answers, setAnswers] = useState<Record<string, string>>({});
     const [isSubmitted, setIsSubmitted] = useState(false);
@@ -82,9 +84,6 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
 
         try {
             // Call server-side grading function
-            const { httpsCallable } = await import('firebase/functions');
-            const { getFunctions } = await import('firebase/functions');
-            const functions = getFunctions();
             const gradeExamFn = httpsCallable(functions, 'gradeExam');
 
             const result = await gradeExamFn({

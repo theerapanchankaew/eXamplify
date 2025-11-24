@@ -33,8 +33,7 @@ import { OverviewChart } from '@/components/dashboard/overview-chart';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, collectionGroup, where, orderBy, limit } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Progress } from '@/components/ui/progress';
-import { calculateCourseProgress, getNextAction } from '@/lib/lesson-progress';
+
 
 export default function DashboardPage() {
   const firestore = useFirestore();
@@ -77,15 +76,9 @@ export default function DashboardPage() {
   );
 
   const totalTokens = tokenTransactions?.reduce((sum, transaction) => sum + (transaction.amount || 0), 0) || 0;
+  const totalValueTHB = totalTokens * 0.01;
 
-  const enrollmentsQuery = useMemoFirebase(
-    () =>
-      firestore && user
-        ? query(collection(firestore, 'enrollments'), where('userId', '==', user.uid))
-        : null,
-    [firestore, user]
-  );
-  const { data: enrollments, isLoading: isLoadingEnrollments } = useCollection(enrollmentsQuery);
+
 
   const recentEnrollmentsQuery = useMemoFirebase(
     () => (firestore ? query(collection(firestore, 'enrollments'), orderBy('enrolledAt', 'desc'), limit(5)) : null),
@@ -113,7 +106,7 @@ export default function DashboardPage() {
                 <>
                   <div className="text-2xl font-bold">{totalTokens.toLocaleString()} Tokens</div>
                   <p className="text-xs text-muted-foreground">
-                    Total tokens from all transactions
+                    ≈ {totalValueTHB.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} THB
                   </p>
                 </>
               )}
@@ -187,78 +180,64 @@ export default function DashboardPage() {
           <Card className="xl:col-span-2">
             <CardHeader className="flex flex-row items-center">
               <div className="grid gap-2">
-                <CardTitle>Continue Learning</CardTitle>
+                <CardTitle>Course Overview</CardTitle>
                 <CardDescription>
-                  Pick up where you left off.
+                  Overview of available courses and their details.
                 </CardDescription>
               </div>
               <Button asChild size="sm" className="ml-auto gap-1">
                 <Link href="/courses">
-                  View All Courses
+                  View All
                   <ArrowUpRight className="h-4 w-4" />
                 </Link>
               </Button>
             </CardHeader>
             <CardContent>
-              {isLoadingEnrollments || isLoadingCourses ? (
+              {isLoadingCourses ? (
                 <div className="space-y-4">
                   <Skeleton className="h-16 w-full" />
                   <Skeleton className="h-16 w-full" />
                 </div>
-              ) : enrollments && enrollments.length > 0 ? (
+              ) : courses && courses.length > 0 ? (
                 <div className="space-y-6">
-                  {enrollments.map((enrollment) => {
-                    const course = courses?.find((c) => c.id === enrollment.courseId);
-                    if (!course) return null;
-
-                    // We don't have modules here efficiently, so we pass empty array
-                    // The utility handles this gracefully
-                    const progress = calculateCourseProgress(enrollment, []);
-                    const nextAction = getNextAction(course.id, true, progress, []);
-
-                    return (
-                      <div key={enrollment.id} className="flex items-center gap-4">
+                  {courses.slice(0, 5).map((course) => (
+                    <div key={course.id} className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
                         <div className="hidden h-9 w-9 items-center justify-center rounded-full border border-primary/10 bg-primary/10 sm:flex">
                           <BookOpen className="h-5 w-5 text-primary" />
                         </div>
-                        <div className="grid gap-1 flex-1">
+                        <div className="grid gap-1">
                           <p className="text-sm font-medium leading-none">
                             {course.name}
                           </p>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Progress value={progress.percentage} className="h-2 w-24" />
-                            <span>{Math.round(progress.percentage)}% Complete</span>
+                            <Badge variant="secondary" className="text-[10px] px-1 py-0 h-5">
+                              {course.category || 'Uncategorized'}
+                            </Badge>
+                            <span>{course.difficulty || 'General'}</span>
                           </div>
                         </div>
-                        <Button asChild size="sm" variant={progress.percentage === 100 ? "outline" : "default"}>
-                          <Link href={nextAction.link}>
-                            {progress.percentage === 100 ? (
-                              <>
-                                <Trophy className="mr-2 h-4 w-4" />
-                                Certificate
-                              </>
-                            ) : (
-                              <>
-                                <PlayCircle className="mr-2 h-4 w-4" />
-                                Continue
-                              </>
-                            )}
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="font-medium">
+                          {course.price ? `${course.price.toFixed(2)} THB` : 'Free'}
+                        </div>
+                        <Button asChild size="sm" variant="ghost">
+                          <Link href={`/courses/${course.id}`}>
+                            View
                           </Link>
                         </Button>
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <BookOpen className="h-10 w-10 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold">No Active Courses</h3>
+                  <h3 className="text-lg font-semibold">No Courses Available</h3>
                   <p className="text-sm text-muted-foreground max-w-sm mb-4">
-                    You haven't enrolled in any courses yet. Browse our catalog to get started.
+                    No courses have been created yet.
                   </p>
-                  <Button asChild>
-                    <Link href="/courses">Browse Courses</Link>
-                  </Button>
                 </div>
               )}
             </CardContent>
@@ -291,11 +270,11 @@ export default function DashboardPage() {
                     const course = courses?.find((c) => c.id === enrollment.courseId);
                     const userInitials = user?.displayName
                       ? user.displayName
-                          .split(' ')
-                          .map((n: string) => n[0])
-                          .join('')
-                          .toUpperCase()
-                          .slice(0, 2)
+                        .split(' ')
+                        .map((n: string) => n[0])
+                        .join('')
+                        .toUpperCase()
+                        .slice(0, 2)
                       : '??';
 
                     return (
@@ -313,7 +292,7 @@ export default function DashboardPage() {
                           </p>
                         </div>
                         <div className="ml-auto font-medium">
-                          {course?.price ? `+$${course.price.toFixed(2)}` : 'Free'}
+                          {course?.price ? `+${course.price.toFixed(2)} THB` : 'Free'}
                         </div>
                       </div>
                     );
