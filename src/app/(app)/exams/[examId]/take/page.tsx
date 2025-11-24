@@ -90,7 +90,7 @@ export default function TakeExamPage() {
     );
     const { data: questions, isLoading: isLoadingQuestions } = useCollection(questionsQuery);
 
-    const isLoading = isLoadingExam || isLoadingQuestions || accessCheck.loading;
+    const isLoading = isLoadingExam || isLoadingQuestions || accessCheck.loading || (accessCheck.canAccess && !exam);
 
     // Loading state
     if (isLoading) {
