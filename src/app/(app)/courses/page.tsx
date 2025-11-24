@@ -70,7 +70,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { MoreVertical, PlusCircle, ShoppingCart } from 'lucide-react';
+import { MoreVertical, PlusCircle, ShoppingCart, Upload } from 'lucide-react';
 import { useMemo } from 'react';
 
 const courseSchema = z.object({
@@ -268,10 +268,18 @@ export default function CoursesPage() {
           </p>
         </div>
         {canManageCourses && (
-          <Button onClick={handleAddCourse}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Create Course
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" asChild>
+              <Link href="/admin/courses/import">
+                <Upload className="mr-2 h-4 w-4" />
+                Import JSON
+              </Link>
+            </Button>
+            <Button onClick={handleAddCourse}>
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Create Course
+            </Button>
+          </div>
         )}
       </div>
 
