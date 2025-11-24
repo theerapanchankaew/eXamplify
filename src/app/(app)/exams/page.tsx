@@ -60,7 +60,7 @@ export default function ExamsPage() {
 
   // Fetch enrollments to check if user has access
   const enrollmentsQuery = useMemoFirebase(
-    () => (firestore && user ? query(collectionGroup(firestore, 'enrollments')) : null),
+    () => (firestore && user ? query(collection(firestore, 'enrollments'), where('userId', '==', user.uid)) : null),
     [firestore, user]
   );
   const { data: enrollments } = useCollection(enrollmentsQuery);
