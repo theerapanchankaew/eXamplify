@@ -56,14 +56,15 @@ export class CourseImporter {
             const courseId = courseRef.id;
 
             addToBatch(() => {
+                // Destructure modules out to avoid saving it to the root document
+                const { modules, ...courseFields } = courseData.course;
+
                 currentBatch.set(courseRef, {
-                    ...courseData.course,
+                    ...courseFields,
                     instructorId: this.userId,
                     createdAt: serverTimestamp(),
                     updatedAt: serverTimestamp(),
                     enrollment_count: 0,
-                    // Remove modules from root document
-                    modules: undefined,
                 });
             });
 
