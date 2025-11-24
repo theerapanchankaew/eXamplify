@@ -122,6 +122,12 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
                     description: `You scored ${data.percentage.toFixed(1)}%. Keep practicing!`,
                 });
             }
+
+            // Redirect to results page after a short delay
+            setTimeout(() => {
+                window.location.href = `/exams/${exam.id}/results?courseId=${exam.courseId}`;
+            }, 2000);
+
         } catch (error: any) {
             console.error("Error submitting exam:", error);
             toast({
