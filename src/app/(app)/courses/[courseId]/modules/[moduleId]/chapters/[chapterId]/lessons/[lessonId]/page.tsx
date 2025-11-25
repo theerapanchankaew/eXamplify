@@ -30,6 +30,8 @@ import {
     isLastLesson,
     type LessonInfo,
 } from '@/lib/lesson-utils';
+import { SlideViewer } from '@/components/lesson/SlideViewer/SlideViewer';
+import type { Slide } from '@/types/slides';
 
 export default function LessonViewerPage() {
     const { courseId, moduleId, chapterId, lessonId } = useParams();
@@ -234,27 +236,41 @@ export default function LessonViewerPage() {
                         <CardContent className="p-0">
                             {/* Content Area */}
                             <div className="p-8 md:p-12 min-h-[500px]">
-                                <div className="prose prose-lg dark:prose-invert max-w-none">
-                                    <h2 className="text-3xl font-bold mb-6">{lesson.title}</h2>
+                                {/* Render SlideViewer if lesson has slides */}
+                                {lesson.slides && Array.isArray(lesson.slides) && lesson.slides.length > 0 ? (
+                                    <SlideViewer
+                                        slides={lesson.slides as Slide[]}
+                                        lessonId={lessonId as string}
+                                        onComplete={handleMarkComplete}
+                                        onProgressUpdate={(slideIndex) => {
+                                            // Optional: Track slide progress
+                                            console.log('Current slide:', slideIndex);
+                                        }}
+                                    />
+                                ) : (
+                                    /* Fallback to traditional content rendering */
+                                    <div className="prose prose-lg dark:prose-invert max-w-none">
+                                        <h2 className="text-3xl font-bold mb-6">{lesson.title}</h2>
 
-                                    {lesson.content ? (
-                                        <div dangerouslySetInnerHTML={{ __html: lesson.content }} />
-                                    ) : (
-                                        <div className="space-y-4">
-                                            <p className="text-lg leading-relaxed">
-                                                {lesson.description || 'No content available for this lesson.'}
-                                            </p>
-
-                                            {/* Placeholder for rich content */}
-                                            <div className="bg-secondary/30 rounded-lg p-8 text-center">
-                                                <BookOpen className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-                                                <p className="text-muted-foreground">
-                                                    Lesson content will be displayed here
+                                        {lesson.content ? (
+                                            <div dangerouslySetInnerHTML={{ __html: lesson.content }} />
+                                        ) : (
+                                            <div className="space-y-4">
+                                                <p className="text-lg leading-relaxed">
+                                                    {lesson.description || 'No content available for this lesson.'}
                                                 </p>
+
+                                                {/* Placeholder for rich content */}
+                                                <div className="bg-secondary/30 rounded-lg p-8 text-center">
+                                                    <BookOpen className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+                                                    <p className="text-muted-foreground">
+                                                        Lesson content will be displayed here
+                                                    </p>
+                                                </div>
                                             </div>
-                                        </div>
-                                    )}
-                                </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Action Footer */}
@@ -333,8 +349,8 @@ export default function LessonViewerPage() {
                                             key={l.id}
                                             href={`/courses/${courseId}/modules/${moduleId}/chapters/${chapterId}/lessons/${l.id}`}
                                             className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${isCurrent
-                                                    ? 'bg-primary/10 border border-primary'
-                                                    : 'hover:bg-secondary'
+                                                ? 'bg-primary/10 border border-primary'
+                                                : 'hover:bg-secondary'
                                                 }`}
                                         >
                                             {isCompleted ? (
