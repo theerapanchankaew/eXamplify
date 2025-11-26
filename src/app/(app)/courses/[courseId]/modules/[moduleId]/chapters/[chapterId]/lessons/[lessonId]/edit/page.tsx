@@ -1,17 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useFirestore, useUser, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { SlideEditor } from '@/components/lesson/SlideEditor/SlideEditor';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import type { Slide } from '@/types/slides';
+import type { SlideEditorHandle } from '@/components/lesson/SlideEditor/SlideEditor';
 
 export default function LessonEditPage() {
     const { courseId, moduleId, chapterId, lessonId } = useParams();
@@ -49,22 +50,18 @@ export default function LessonEditPage() {
 
     const isLoading = lessonLoading || courseLoading;
 
-    // Check if user is authorized (Admin or course owner)
+    // Authorization check
     const isAuthorized =
         userProfile?.role === 'Admin' ||
         (userProfile?.role === 'Instructor' && course?.instructorId === user?.uid);
 
-    // Handle save
+    // Save handler
     const handleSave = async (slides: Slide[]) => {
         if (!firestore || !lessonRef) {
             throw new Error('Firestore not initialized');
         }
-
         try {
-            await updateDoc(lessonRef, {
-                slides: slides,
-                updatedAt: new Date(),
-            });
+            await updateDoc(lessonRef, { slides, updatedAt: new Date() });
         } catch (error: any) {
             console.error('Error saving slides:', error);
             throw new Error(error.message || 'Failed to save slides');
@@ -106,8 +103,10 @@ export default function LessonEditPage() {
     }
 
     if (!isAuthorized) {
-        return null; // Will redirect
+        return null; // Redirect handled in effect
     }
+
+    const editorRef = React.useRef<SlideEditorHandle>(null);
 
     return (
         <div className="container mx-auto py-10">
@@ -119,7 +118,6 @@ export default function LessonEditPage() {
                         Back to Course
                     </Link>
                 </Button>
-
                 <Card>
                     <CardHeader>
                         <CardTitle className="text-3xl">Edit Lesson Slides</CardTitle>
@@ -128,8 +126,14 @@ export default function LessonEditPage() {
                 </Card>
             </div>
 
+            {/* Add Slide Button */}
+            <div className="mb-4">
+                <Button onClick={() => editorRef.current?.addSlide()}>Add Slide</Button>
+            </div>
+
             {/* Slide Editor */}
             <SlideEditor
+                ref={editorRef}
                 initialSlides={lesson.slides || []}
                 lessonId={lessonId as string}
                 onSave={handleSave}
@@ -137,3 +141,4 @@ export default function LessonEditPage() {
         </div>
     );
 }
+

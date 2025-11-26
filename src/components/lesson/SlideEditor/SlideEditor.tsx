@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Slide, SlideEditorState, SlideLayout } from '@/types/slides';
 import {
   createSlide,
@@ -44,7 +44,11 @@ interface SlideEditorProps {
   onSave: (slides: Slide[]) => Promise<void>;
 }
 
-export function SlideEditor({ initialSlides = [], lessonId, onSave }: SlideEditorProps) {
+export interface SlideEditorHandle {
+  addSlide: () => void;
+}
+
+export const SlideEditor = React.forwardRef<SlideEditorHandle, SlideEditorProps>(function SlideEditor({ initialSlides = [], lessonId, onSave }, ref) {
   const { toast } = useToast();
   const [state, setState] = useState<SlideEditorState>({
     currentSlide: 0,
@@ -71,6 +75,9 @@ export function SlideEditor({ initialSlides = [], lessonId, onSave }: SlideEdito
       isDirty: true,
     }));
   }, [state.slides.length]);
+
+  // expose addSlide via ref
+  React.useImperativeHandle(ref, () => ({ addSlide }));
 
   const deleteSlide = useCallback((index: number) => {
     if (state.slides.length === 1) {
@@ -357,4 +364,4 @@ export function SlideEditor({ initialSlides = [], lessonId, onSave }: SlideEdito
       </div>
     </div>
   );
-}
+});

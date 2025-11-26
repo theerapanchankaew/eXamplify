@@ -1,25 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useFirestore, useUser, useDoc, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
-import { Card, CardContent } from '@/components/ui/card';
+import { doc, updateDoc } from 'firebase/firestore';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import {
-    ChevronLeft,
-    ChevronRight,
-    CheckCircle2,
-    Circle,
-    BookOpen,
-    Clock,
-    Award,
-    Home
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckCircle2, Circle, BookOpen, Clock, Award, Home } from 'lucide-react';
 import Link from 'next/link';
 import {
     getLessonsInChapter,
@@ -32,6 +23,17 @@ import {
 } from '@/lib/lesson-utils';
 import { SlideViewer } from '@/components/lesson/SlideViewer/SlideViewer';
 import type { Slide } from '@/types/slides';
+import { SlideEditor } from '@/components/lesson/SlideEditor/SlideEditor';
+import type { SlideEditorHandle } from '@/components/lesson/SlideEditor/SlideEditor';
+import {
+    Dialog,
+    DialogTrigger,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogClose,
+} from '@/components/ui/dialog';
 
 export default function LessonViewerPage() {
     const { courseId, moduleId, chapterId, lessonId } = useParams();
@@ -39,10 +41,6 @@ export default function LessonViewerPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
     const router = useRouter();
-
-    const [isCompleting, setIsCompleting] = useState(false);
-    const [lessons, setLessons] = useState<LessonInfo[]>([]);
-    const [loadingLessons, setLoadingLessons] = useState(true);
 
     // Fetch lesson
     const lessonRef = useMemoFirebase(
@@ -55,9 +53,35 @@ export default function LessonViewerPage() {
                 : null,
         [firestore, courseId, moduleId, chapterId, lessonId]
     );
-    const { data: lesson, isLoading } = useDoc(lessonRef);
+    const { data: lesson, isLoading: lessonLoading } = useDoc(lessonRef);
 
-    // Fetch chapter to get all lessons
+    // Fetch course
+    const courseRef = useMemoFirebase(
+        () => (firestore && courseId ? doc(firestore, `courses/${courseId}`) : null),
+        [firestore, courseId]
+    );
+    const { data: course, isLoading: courseLoading } = useDoc(courseRef);
+
+    // Fetch user profile
+    const userProfileRef = useMemoFirebase(
+        () => (firestore && user ? doc(firestore, 'users', user.uid) : null),
+        [firestore, user]
+    );
+    const { data: userProfile } = useDoc(userProfileRef);
+
+    const isAuthorized =
+        userProfile?.role === 'Admin' ||
+        (userProfile?.role === 'Instructor' && course?.instructorId === user?.uid);
+
+    const isLoading = lessonLoading || courseLoading;
+
+    const [isCompleting, setIsCompleting] = useState(false);
+    const [lessons, setLessons] = useState<LessonInfo[]>([]);
+    const [loadingLessons, setLoadingLessons] = useState(true);
+    const [showEditor, setShowEditor] = useState(false);
+    const editorRef = React.useRef<SlideEditorHandle>(null);
+
+    // Fetch chapter lessons
     const chapterRef = useMemoFirebase(
         () =>
             firestore && courseId && moduleId && chapterId
@@ -67,21 +91,18 @@ export default function LessonViewerPage() {
     );
     const { data: chapter } = useDoc(chapterRef);
 
-    // Fetch enrollment for progress
+    // Enrollment
     const enrollmentRef = useMemoFirebase(
         () =>
-            firestore && user && courseId
-                ? doc(firestore, 'enrollments', `${user.uid}_${courseId}`)
-                : null,
+            firestore && user && courseId ? doc(firestore, 'enrollments', `${user.uid}_${courseId}`) : null,
         [firestore, user, courseId]
     );
     const { data: enrollment } = useDoc(enrollmentRef);
 
-    // Load all lessons in chapter
+    // Load lessons in chapter
     useEffect(() => {
         async function loadLessons() {
             if (!firestore || !courseId || !moduleId || !chapterId) return;
-
             setLoadingLessons(true);
             const chapterLessons = await getLessonsInChapter(
                 firestore,
@@ -92,26 +113,15 @@ export default function LessonViewerPage() {
             setLessons(chapterLessons);
             setLoadingLessons(false);
         }
-
         loadLessons();
     }, [firestore, courseId, moduleId, chapterId]);
 
     const handleMarkComplete = async () => {
         if (!firestore || !user || !courseId || !lessonId) return;
-
         setIsCompleting(true);
         try {
-            await markLessonComplete(
-                firestore,
-                user.uid,
-                courseId as string,
-                lessonId as string
-            );
-
-            toast({
-                title: 'Lesson Completed!',
-                description: 'Great job! Keep learning.',
-            });
+            await markLessonComplete(firestore, user.uid, courseId as string, lessonId as string);
+            toast({ title: 'Lesson Completed!', description: 'Great job! Keep learning.' });
         } catch (error: any) {
             toast({
                 variant: 'destructive',
@@ -125,24 +135,12 @@ export default function LessonViewerPage() {
 
     const handleNext = async () => {
         const nextLesson = getNextLesson(lessons, lessonId as string);
-
         if (!nextLesson) return;
-
-        // Mark current lesson complete
         if (firestore && user && courseId) {
             try {
-                await markLessonComplete(
-                    firestore,
-                    user.uid,
-                    courseId as string,
-                    lessonId as string
-                );
-            } catch (error) {
-                console.error('Error marking complete:', error);
-            }
+                await markLessonComplete(firestore, user.uid, courseId as string, lessonId as string);
+            } catch { }
         }
-
-        // Navigate to next lesson
         router.push(
             `/courses/${courseId}/modules/${moduleId}/chapters/${chapterId}/lessons/${nextLesson.id}`
         );
@@ -150,12 +148,17 @@ export default function LessonViewerPage() {
 
     const handlePrevious = () => {
         const prevLesson = getPreviousLesson(lessons, lessonId as string);
-
         if (!prevLesson) return;
-
         router.push(
             `/courses/${courseId}/modules/${moduleId}/chapters/${chapterId}/lessons/${prevLesson.id}`
         );
+    };
+
+    const handleSave = async (slides: Slide[]) => {
+        if (!firestore || !lessonRef) {
+            throw new Error('Firestore not initialized');
+        }
+        await updateDoc(lessonRef, { slides, updatedAt: new Date() });
     };
 
     if (isLoading || loadingLessons) {
@@ -181,11 +184,14 @@ export default function LessonViewerPage() {
         );
     }
 
+    if (!isAuthorized) {
+        router.push(`/courses/${courseId}`);
+        return null;
+    }
+
     const progress = enrollment?.progress || 0;
     const isFirst = isFirstLesson(lessons, lessonId as string);
     const isLast = isLastLesson(lessons, lessonId as string);
-    const nextLesson = getNextLesson(lessons, lessonId as string);
-    const prevLesson = getPreviousLesson(lessons, lessonId as string);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20">
@@ -204,7 +210,20 @@ export default function LessonViewerPage() {
                                 <p className="text-sm text-muted-foreground">{chapter?.name}</p>
                             </div>
                         </div>
-
+                        {isAuthorized && (
+                            <>
+                                <Button asChild variant="outline" className="ml-4">
+                                    <Link
+                                        href={`/courses/${courseId}/modules/${moduleId}/chapters/${chapterId}/lessons/${lessonId}/edit`}
+                                    >
+                                        Edit Slides
+                                    </Link>
+                                </Button>
+                                <Button variant="outline" className="ml-4" onClick={() => setShowEditor(true)}>
+                                    Edit Slides (Modal)
+                                </Button>
+                            </>
+                        )}
                         <div className="flex items-center gap-4">
                             <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
                                 <Clock className="h-4 w-4" />
@@ -234,24 +253,19 @@ export default function LessonViewerPage() {
                     {/* Lesson Card */}
                     <Card className="shadow-2xl border-2">
                         <CardContent className="p-0">
-                            {/* Content Area */}
                             <div className="p-8 md:p-12 min-h-[500px]">
-                                {/* Render SlideViewer if lesson has slides */}
                                 {lesson.slides && Array.isArray(lesson.slides) && lesson.slides.length > 0 ? (
                                     <SlideViewer
                                         slides={lesson.slides as Slide[]}
                                         lessonId={lessonId as string}
                                         onComplete={handleMarkComplete}
                                         onProgressUpdate={(slideIndex) => {
-                                            // Optional: Track slide progress
                                             console.log('Current slide:', slideIndex);
                                         }}
                                     />
                                 ) : (
-                                    /* Fallback to traditional content rendering */
                                     <div className="prose prose-lg dark:prose-invert max-w-none">
                                         <h2 className="text-3xl font-bold mb-6">{lesson.title}</h2>
-
                                         {lesson.content ? (
                                             <div dangerouslySetInnerHTML={{ __html: lesson.content }} />
                                         ) : (
@@ -259,13 +273,9 @@ export default function LessonViewerPage() {
                                                 <p className="text-lg leading-relaxed">
                                                     {lesson.description || 'No content available for this lesson.'}
                                                 </p>
-
-                                                {/* Placeholder for rich content */}
                                                 <div className="bg-secondary/30 rounded-lg p-8 text-center">
                                                     <BookOpen className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-                                                    <p className="text-muted-foreground">
-                                                        Lesson content will be displayed here
-                                                    </p>
+                                                    <p className="text-muted-foreground">Lesson content will be displayed here</p>
                                                 </div>
                                             </div>
                                         )}
@@ -276,22 +286,12 @@ export default function LessonViewerPage() {
                             {/* Action Footer */}
                             <div className="border-t bg-secondary/20 p-6">
                                 <div className="flex items-center justify-between">
-                                    <Button
-                                        variant="outline"
-                                        size="lg"
-                                        onClick={handlePrevious}
-                                        disabled={isFirst}
-                                    >
+                                    <Button variant="outline" size="lg" onClick={handlePrevious} disabled={isFirst}>
                                         <ChevronLeft className="mr-2 h-4 w-4" />
                                         Previous
                                     </Button>
 
-                                    <Button
-                                        size="lg"
-                                        onClick={handleMarkComplete}
-                                        disabled={isCompleting}
-                                        variant="outline"
-                                    >
+                                    <Button size="lg" onClick={handleMarkComplete} disabled={isCompleting} variant="outline">
                                         {isCompleting ? (
                                             'Saving...'
                                         ) : (
@@ -302,11 +302,7 @@ export default function LessonViewerPage() {
                                         )}
                                     </Button>
 
-                                    <Button
-                                        size="lg"
-                                        onClick={handleNext}
-                                        disabled={isLast}
-                                    >
+                                    <Button size="lg" onClick={handleNext} disabled={isLast}>
                                         {isLast ? 'Last Lesson' : 'Next'}
                                         <ChevronRight className="ml-2 h-4 w-4" />
                                     </Button>
@@ -343,14 +339,11 @@ export default function LessonViewerPage() {
                                 {lessons.map((l) => {
                                     const isCurrent = l.id === lessonId;
                                     const isCompleted = enrollment?.completedLessons?.[l.id];
-
                                     return (
                                         <Link
                                             key={l.id}
                                             href={`/courses/${courseId}/modules/${moduleId}/chapters/${chapterId}/lessons/${l.id}`}
-                                            className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${isCurrent
-                                                ? 'bg-primary/10 border border-primary'
-                                                : 'hover:bg-secondary'
+                                            className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${isCurrent ? 'bg-primary/10 border border-primary' : 'hover:bg-secondary'
                                                 }`}
                                         >
                                             {isCompleted ? (
@@ -358,12 +351,8 @@ export default function LessonViewerPage() {
                                             ) : (
                                                 <Circle className="h-5 w-5 text-muted-foreground" />
                                             )}
-                                            <span className={isCurrent ? 'font-medium' : ''}>
-                                                {l.title}
-                                            </span>
-                                            {isCurrent && (
-                                                <Badge className="ml-auto">Current</Badge>
-                                            )}
+                                            <span className={isCurrent ? 'font-medium' : ''}>{l.title}</span>
+                                            {isCurrent && <Badge className="ml-auto">Current</Badge>}
                                         </Link>
                                     );
                                 })}
@@ -372,6 +361,27 @@ export default function LessonViewerPage() {
                     </Card>
                 </div>
             </div>
+
+            {/* Dialog Modal */}
+            <Dialog open={showEditor} onOpenChange={setShowEditor}>
+                <DialogContent className="max-w-4xl">
+                    <DialogHeader>
+                        <DialogTitle>Edit Slides</DialogTitle>
+                    </DialogHeader>
+                    <SlideEditor
+                        ref={editorRef}
+                        initialSlides={lesson.slides || []}
+                        lessonId={lessonId as string}
+                        onSave={async (slides) => {
+                            await handleSave(slides);
+                            setShowEditor(false);
+                        }}
+                    />
+                    <DialogClose asChild>
+                        <Button variant="ghost">Close</Button>
+                    </DialogClose>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
