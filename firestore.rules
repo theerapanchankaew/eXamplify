@@ -120,8 +120,6 @@ service cloud.firestore {
       allow get, list: if isEnrolled(courseId) || isCourseInstructor(courseId) || isAdmin();
       allow create: if (isCourseInstructor(courseId) || isAdmin()) && request.resource.data.chapterId == chapterId;
       allow update, delete: if isCourseInstructor(courseId) || isAdmin();
-      allow update: if isOwner(resource.data.userId) || isCourseInstructor(resource.data.courseId) || isAdmin();
-      allow delete: if isOwner(resource.data.userId) || isCourseInstructor(resource.data.courseId) || isAdmin();
     }
 
     match /{path=**}/exams/{examId} {
@@ -146,11 +144,11 @@ service cloud.firestore {
     }
 
     match /enrollments/{enrollmentId} {
-      allow get: if isSignedIn() && (isOwner(resource.data.userId) || isCourseInstructor(resource.data.courseId) || isAdmin());
+      allow get: if isSignedIn() && (isOwner(resource.data.userId) || ('courseId' in resource.data && isCourseInstructor(resource.data.courseId)) || isAdmin());
       allow list: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isOwner(resource.data.userId) || isCourseInstructor(resource.data.courseId) || isAdmin();
-      allow delete: if isOwner(resource.data.userId) || isCourseInstructor(resource.data.courseId) || isAdmin();
+      allow update: if isOwner(resource.data.userId) || ('courseId' in resource.data && isCourseInstructor(resource.data.courseId)) || isAdmin();
+      allow delete: if isOwner(resource.data.userId) || ('courseId' in resource.data && isCourseInstructor(resource.data.courseId)) || isAdmin();
     }
 
     match /examResults/{resultId} {
