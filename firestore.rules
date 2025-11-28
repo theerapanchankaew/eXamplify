@@ -110,10 +110,10 @@ service cloud.firestore {
       allow delete: if isCourseInstructor(courseId) || isAdmin();
       
       match /exams/{examId} {
-        // Exam metadata can be viewed by enrolled users, instructors, and admins
-        // For marketplace display, we'll handle this at the application level
-        allow get: if canAccessExam(courseId, examId);
-        allow list: if isSignedIn(); // List is needed for marketplace, but questions are protected
+        // Allow listing exams for marketplace (metadata only)
+        allow list: if isSignedIn();
+        // Allow get for enrolled users, instructors, and admins
+        allow get: if isEnrolledInExam(examId) || isEnrolled(courseId) || isCourseInstructor(courseId) || isAdmin() || isInstructor();
         allow create: if isAdmin() || isInstructor();
         allow update, delete: if isAdmin() || isInstructor();
         
