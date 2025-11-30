@@ -4,11 +4,14 @@ import { Progress } from '@/components/ui/progress';
 import { QuestionCard } from './QuestionCard';
 import { ExamResults } from './ExamResults';
 import { WebcamMonitor } from './WebcamMonitor';
-import { ArrowRight, ArrowLeft, Timer, AlertTriangle } from 'lucide-react';
+import { QuestionNavigator } from './QuestionNavigator';
+import { ExamReview } from './ExamReview';
+import { ArrowRight, ArrowLeft, Timer, AlertTriangle, Flag, LayoutGrid } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useFirestore, useUser, useFunctions } from '@/firebase';
 import { httpsCallable } from 'firebase/functions';
+import { useExamState } from '@/hooks/use-exam-state';
+import { cn } from '@/lib/utils';
 
 interface Question {
     id: string;
@@ -16,7 +19,6 @@ interface Question {
     type: 'Multiple Choice' | 'True/False' | 'Short Answer';
     options?: string[];
     points: number;
-    // NO answer field - this is server-side only!
 }
 
 interface Exam {
@@ -24,7 +26,7 @@ interface Exam {
     name: string;
     description: string;
     courseId: string;
-    passingScore?: number; // Optional, default to 50%
+    passingScore?: number;
 }
 
 interface ExamTakerProps {
@@ -37,14 +39,23 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
     const firestore = useFirestore();
     const { user } = useUser();
     const functions = useFunctions();
-    const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-    const [answers, setAnswers] = useState<Record<string, string>>({});
-    const [isSubmitted, setIsSubmitted] = useState(false);
-    const [score, setScore] = useState(0);
-    const [startTime] = useState(Date.now());
-    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Proctoring State
+    // Use custom hook for persistent state
+    const {
+        state,
+        setAnswer,
+        toggleFlag,
+        setCurrentQuestionIndex,
+        clearState,
+        finishExam
+    } = useExamState({
+        examId: exam.id,
+        userId: user?.uid || 'anonymous',
+        totalQuestions: questions.length
+    });
+
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [view, setView] = useState<'question' | 'review'>('question');
     const [cameraPermission, setCameraPermission] = useState<boolean | null>(null);
 
     // Calculate total points
@@ -52,21 +63,20 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
     const passingScore = exam.passingScore || 50;
 
     const handleSelectOption = (value: string) => {
-        setAnswers((prev) => ({
-            ...prev,
-            [questions[currentQuestionIndex].id]: value,
-        }));
+        setAnswer(questions[state.currentQuestionIndex].id, value);
     };
 
     const handleNext = () => {
-        if (currentQuestionIndex < questions.length - 1) {
-            setCurrentQuestionIndex((prev) => prev + 1);
+        if (state.currentQuestionIndex < questions.length - 1) {
+            setCurrentQuestionIndex(state.currentQuestionIndex + 1);
+        } else {
+            setView('review');
         }
     };
 
     const handlePrevious = () => {
-        if (currentQuestionIndex > 0) {
-            setCurrentQuestionIndex((prev) => prev - 1);
+        if (state.currentQuestionIndex > 0) {
+            setCurrentQuestionIndex(state.currentQuestionIndex - 1);
         }
     };
 
@@ -83,14 +93,13 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
         setIsSubmitting(true);
 
         try {
-            // Call server-side grading function
             const gradeExamFn = httpsCallable(functions, 'gradeExam');
 
             const result = await gradeExamFn({
                 examId: exam.id,
                 courseId: exam.courseId,
-                answers: answers,
-                startTime: startTime,
+                answers: state.answers,
+                startTime: state.startTime,
             });
 
             const data = result.data as {
@@ -102,10 +111,12 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
                 resultId: string;
             };
 
-            setScore(data.score);
-            setIsSubmitted(true);
+            // Clear local storage state
+            clearState();
 
-            // Show success message
+            // Mark as finished in local state to show results
+            finishExam();
+
             if (data.passed && data.certificateIssued) {
                 toast({
                     title: "🎉 Congratulations!",
@@ -135,16 +146,13 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
                 title: "Submission Failed",
                 description: error.message || "Failed to submit exam. Please try again.",
             });
-        } finally {
             setIsSubmitting(false);
         }
     };
 
     const handleRetake = () => {
-        setAnswers({});
-        setCurrentQuestionIndex(0);
-        setIsSubmitted(false);
-        setScore(0);
+        clearState();
+        window.location.reload();
     };
 
     if (questions.length === 0) {
@@ -156,7 +164,6 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
         );
     }
 
-    // Block access until camera is granted
     if (cameraPermission === false) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6 text-center px-4">
@@ -173,110 +180,182 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
         );
     }
 
-    if (isSubmitted) {
+    // Since we redirect on success, we don't strictly need to show ExamResults here,
+    // but we keep it for immediate feedback if redirect is slow or fails
+    if (state.isFinished) {
         return (
-            <ExamResults
-                score={score}
-                totalQuestions={totalPoints}
-                passingScore={passingScore}
-                onRetake={handleRetake}
-                courseId={exam.courseId}
-            />
+            <div className="flex items-center justify-center min-h-[50vh]">
+                <div className="text-center space-y-4">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+                    <h2 className="text-xl font-semibold">Processing Results...</h2>
+                </div>
+            </div>
         );
     }
 
-    const currentQuestion = questions[currentQuestionIndex];
-    const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
+    const currentQuestion = questions[state.currentQuestionIndex];
+    const progress = ((state.currentQuestionIndex + 1) / questions.length) * 100;
+    const isFlagged = state.flaggedQuestions.includes(currentQuestion.id);
 
     return (
-        <div className="w-full max-w-6xl mx-auto flex flex-col lg:flex-row gap-8 relative">
+        <div className="w-full max-w-7xl mx-auto flex flex-col lg:flex-row gap-8 relative pb-20">
 
             {/* Main Content Area */}
-            <div className="flex-1 space-y-8">
+            <div className="flex-1 space-y-6">
                 {/* Header / Progress */}
                 <div className="space-y-4 bg-white/50 dark:bg-zinc-900/50 p-6 rounded-2xl backdrop-blur-sm border border-border/50">
                     <div className="flex justify-between items-center">
                         <div>
                             <h2 className="text-2xl font-bold tracking-tight">{exam.name}</h2>
-                            <p className="text-sm text-muted-foreground">Question {currentQuestionIndex + 1} of {questions.length}</p>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                                {view === 'question' ? (
+                                    <span>Question {state.currentQuestionIndex + 1} of {questions.length}</span>
+                                ) : (
+                                    <span>Review Mode</span>
+                                )}
+                                {isFlagged && view === 'question' && (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+                                        <Flag className="w-3 h-3 mr-1" /> Flagged
+                                    </span>
+                                )}
+                            </div>
                         </div>
                         <div className="flex items-center gap-3 bg-secondary/50 px-4 py-2 rounded-full">
                             <Timer className="h-5 w-5 text-primary animate-pulse" />
                             <span className="font-mono font-medium text-lg">
-                                {Math.floor((Date.now() - startTime) / 60000)}m
+                                {Math.floor((Date.now() - state.startTime) / 60000)}m
                             </span>
                         </div>
                     </div>
-                    <Progress value={progress} className="h-3 rounded-full" />
+                    <Progress value={progress} className="h-2 rounded-full" />
                 </div>
 
-                {/* Question Card */}
-                <div className="min-h-[400px] flex items-center">
-                    <QuestionCard
-                        question={currentQuestion}
-                        selectedOption={answers[currentQuestion.id]}
-                        onSelectOption={handleSelectOption}
-                        questionNumber={currentQuestionIndex + 1}
-                        totalQuestions={questions.length}
+                {view === 'review' ? (
+                    <ExamReview
+                        questions={questions}
+                        answers={state.answers}
+                        flaggedQuestions={state.flaggedQuestions}
+                        onNavigateToQuestion={(index) => {
+                            setCurrentQuestionIndex(index);
+                            setView('question');
+                        }}
+                        onSubmit={handleSubmit}
+                        isSubmitting={isSubmitting}
                     />
-                </div>
+                ) : (
+                    <>
+                        {/* Question Card */}
+                        <div className="min-h-[400px] flex items-center">
+                            <QuestionCard
+                                question={currentQuestion}
+                                selectedOption={state.answers[currentQuestion.id]}
+                                onSelectOption={handleSelectOption}
+                                questionNumber={state.currentQuestionIndex + 1}
+                                totalQuestions={questions.length}
+                            />
+                        </div>
 
-                {/* Navigation */}
-                <div className="flex justify-between pt-4 px-2">
-                    <Button
-                        variant="ghost"
-                        size="lg"
-                        onClick={handlePrevious}
-                        disabled={currentQuestionIndex === 0}
-                        className="text-muted-foreground hover:text-foreground"
-                    >
-                        <ArrowLeft className="mr-2 h-5 w-5" />
-                        Previous
-                    </Button>
+                        {/* Navigation */}
+                        <div className="flex justify-between pt-4 px-2">
+                            <Button
+                                variant="ghost"
+                                size="lg"
+                                onClick={handlePrevious}
+                                disabled={state.currentQuestionIndex === 0}
+                                className="text-muted-foreground hover:text-foreground"
+                            >
+                                <ArrowLeft className="mr-2 h-5 w-5" />
+                                Previous
+                            </Button>
 
-                    {currentQuestionIndex === questions.length - 1 ? (
-                        <Button
-                            size="lg"
-                            onClick={handleSubmit}
-                            disabled={isSubmitting}
-                            className="bg-green-600 hover:bg-green-700 px-8 shadow-lg shadow-green-600/20"
-                        >
-                            {isSubmitting ? 'Submitting...' : 'Submit Exam'}
-                        </Button>
-                    ) : (
-                        <Button size="lg" onClick={handleNext} className="px-8 shadow-lg shadow-primary/20">
-                            Next
-                            <ArrowRight className="ml-2 h-5 w-5" />
-                        </Button>
-                    )}
-                </div>
+                            <div className="flex gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="lg"
+                                    onClick={() => toggleFlag(currentQuestion.id)}
+                                    className={cn(
+                                        "border-amber-200 hover:bg-amber-50 hover:text-amber-600 dark:border-amber-900 dark:hover:bg-amber-900/20",
+                                        isFlagged && "bg-amber-50 text-amber-600 border-amber-300 dark:bg-amber-900/20 dark:text-amber-400"
+                                    )}
+                                >
+                                    <Flag className={cn("mr-2 h-5 w-5", isFlagged && "fill-current")} />
+                                    {isFlagged ? 'Flagged' : 'Flag'}
+                                </Button>
+
+                                {state.currentQuestionIndex === questions.length - 1 ? (
+                                    <Button
+                                        size="lg"
+                                        onClick={() => setView('review')}
+                                        className="px-8"
+                                    >
+                                        Review Answers
+                                    </Button>
+                                ) : (
+                                    <Button size="lg" onClick={handleNext} className="px-8 shadow-lg shadow-primary/20">
+                                        Next
+                                        <ArrowRight className="ml-2 h-5 w-5" />
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    </>
+                )}
             </div>
 
             {/* Sidebar / Proctoring Feed */}
-            <div className="lg:w-64 flex flex-col gap-6">
+            <div className="lg:w-80 flex flex-col gap-6">
                 {/* Camera Feed - Sticky on Desktop */}
-                <div className="sticky top-8">
-                    <div className="mb-4">
-                        <h3 className="font-semibold mb-1">Proctoring Active</h3>
-                        <p className="text-xs text-muted-foreground">Your session is being monitored.</p>
+                <div className="sticky top-8 space-y-6">
+                    <div>
+                        <div className="mb-4 flex items-center justify-between">
+                            <h3 className="font-semibold">Proctoring Active</h3>
+                            <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                        </div>
+
+                        <WebcamMonitor
+                            onPermissionGranted={() => setCameraPermission(true)}
+                            onPermissionDenied={() => setCameraPermission(false)}
+                        />
                     </div>
 
-                    <WebcamMonitor
-                        onPermissionGranted={() => setCameraPermission(true)}
-                        onPermissionDenied={() => setCameraPermission(false)}
-                    />
+                    {/* Question Navigator */}
+                    <div className="bg-card border rounded-xl p-4 shadow-sm">
+                        <QuestionNavigator
+                            totalQuestions={questions.length}
+                            currentIndex={view === 'question' ? state.currentQuestionIndex : -1}
+                            answers={state.answers}
+                            flaggedQuestions={state.flaggedQuestions}
+                            questions={questions}
+                            onSelectQuestion={(index) => {
+                                setCurrentQuestionIndex(index);
+                                setView('question');
+                            }}
+                        />
+                    </div>
 
                     {/* Exam Rules / Info */}
-                    <div className="mt-6 space-y-4 p-4 bg-secondary/20 rounded-xl border border-border/50 text-sm">
-                        <div className="flex gap-2 text-muted-foreground">
-                            <AlertTriangle className="h-4 w-4 shrink-0" />
-                            <span>Do not switch tabs</span>
+                    <div className="p-4 bg-secondary/20 rounded-xl border border-border/50 text-sm space-y-3">
+                        <div className="font-medium flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4 text-amber-500" />
+                            Exam Rules
                         </div>
-                        <div className="flex gap-2 text-muted-foreground">
-                            <AlertTriangle className="h-4 w-4 shrink-0" />
-                            <span>Keep face in frame</span>
-                        </div>
+                        <ul className="space-y-2 text-muted-foreground text-xs list-disc list-inside">
+                            <li>Do not switch tabs or windows</li>
+                            <li>Keep your face visible in the frame</li>
+                            <li>Your progress is saved automatically</li>
+                        </ul>
                     </div>
+
+                    {view === 'question' && (
+                        <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => setView('review')}
+                        >
+                            <LayoutGrid className="mr-2 h-4 w-4" />
+                            Overview & Submit
+                        </Button>
+                    )}
                 </div>
             </div>
 

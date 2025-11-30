@@ -98,22 +98,16 @@ export default function BillingPage() {
   );
   const { data: myTransactions, isLoading: isLoadingMyTransactions } = useCollection(myTransactionsQuery);
 
-  // Query for the history table (Admin sees all, User sees theirs)
+  // Query for the history table (Both Admin and User see their own transactions)
   const historyQuery = useMemoFirebase(
     () => {
-      if (!firestore || !userProfile) return null;
-      if (userProfile.role === 'Admin') {
-        return query(
-          collectionGroup(firestore, 'tokenTransactions'),
-          orderBy('timestamp', 'desc')
-        );
-      }
+      if (!firestore || !user) return null;
       return query(
-        collection(firestore, 'users', userProfile.id, 'tokenTransactions'),
+        collection(firestore, 'users', user.uid, 'tokenTransactions'),
         orderBy('timestamp', 'desc')
       );
     },
-    [firestore, userProfile]
+    [firestore, user]
   );
 
   const { data: historyTransactions, isLoading: isLoadingHistory, error: historyError } = useCollection(historyQuery);
@@ -239,24 +233,13 @@ export default function BillingPage() {
     }
   };
 
-  const isLoading = isLoadingHistory || isLoadingProfile || isLoadingUsers;
+  const isLoading = isLoadingHistory || isLoadingProfile;
 
-  // Enhance transactions with user info for display
+  // Transactions are already from the current user, no need to enrich
   const enrichedTransactions = useMemo(() => {
-    if (isLoading || !historyTransactions || !users) return [];
-
-    if (userProfile?.role !== 'Admin') {
-      return historyTransactions;
-    }
-
-    // Admins see all transactions, so we enrich them with user details.
-    return historyTransactions.map(t => {
-      // Path is like 'users/USER_ID/tokenTransactions/TRANSACTION_ID'
-      const userId = t.path?.split('/')[1];
-      const transactionUser = users.find(u => u.id === userId);
-      return { ...t, user: transactionUser };
-    });
-  }, [isLoading, historyTransactions, users, userProfile]);
+    if (isLoading || !historyTransactions) return [];
+    return historyTransactions;
+  }, [isLoading, historyTransactions]);
 
   return (
     <div className="w-full space-y-8">
@@ -418,7 +401,6 @@ export default function BillingPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Date</TableHead>
-                {userProfile?.role === 'Admin' && <TableHead>User</TableHead>}
                 <TableHead>Description</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
@@ -429,7 +411,6 @@ export default function BillingPage() {
                 Array.from({ length: 3 }).map((_, i) => (
                   <TableRow key={i}>
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                    {userProfile?.role === 'Admin' && <TableCell><Skeleton className="h-5 w-32" /></TableCell>}
                     <TableCell><Skeleton className="h-5 w-40" /></TableCell>
                     <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
                     <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
@@ -437,8 +418,8 @@ export default function BillingPage() {
                 ))
               ) : historyError ? (
                 <TableRow>
-                  <TableCell colSpan={userProfile?.role === 'Admin' ? 5 : 4} className="text-center text-destructive">
-                    Error loading transactions. {userProfile?.role === 'Admin' && "Please ensure the 'tokenTransactions' collection group index is enabled in Firebase."}
+                  <TableCell colSpan={4} className="text-center text-destructive">
+                    Error loading transactions.
                   </TableCell>
                 </TableRow>
               ) : enrichedTransactions && enrichedTransactions.length > 0 ? (
@@ -449,17 +430,6 @@ export default function BillingPage() {
                         ? format(t.timestamp.toDate(), 'PPP')
                         : 'Date not available'}
                     </TableCell>
-                    {userProfile?.role === 'Admin' && (
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-6 w-6" data-ai-hint="person face">
-                            <AvatarImage src={`https://picsum.photos/seed/${t.user?.id}/30/30`} />
-                            <AvatarFallback>{t.user?.username?.charAt(0) || 'U'}</AvatarFallback>
-                          </Avatar>
-                          <span>{t.user?.username || t.user?.email || 'N/A'}</span>
-                        </div>
-                      </TableCell>
-                    )}
                     <TableCell>{t.description || 'N/A'}</TableCell>
                     <TableCell>
                       <Badge variant={getBadgeVariant(t.transactionType)}>
@@ -473,7 +443,7 @@ export default function BillingPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={userProfile?.role === 'Admin' ? 5 : 4} className="text-center">
+                  <TableCell colSpan={4} className="text-center">
                     No transactions yet.
                   </TableCell>
                 </TableRow>

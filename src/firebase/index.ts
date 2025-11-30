@@ -16,7 +16,7 @@ export function initializeFirebase() {
       throw new Error('Firebase configuration is missing or invalid. Please check your firebase/config.ts file.');
     }
 
-    firebaseApp = initializeApp(firebaseConfig);
+    const firebaseApp = initializeApp(firebaseConfig);
     return getSdks(firebaseApp);
   }
 
@@ -30,19 +30,19 @@ export function getSdks(firebaseApp: FirebaseApp) {
   const functions = getFunctions(firebaseApp);
 
   // Connect to emulators in development
-  if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
-    try {
-      // Connect to Functions emulator
-      connectFunctionsEmulator(functions, 'localhost', 5001);
+  // if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+  //   try {
+  //     // Connect to Functions emulator
+  //     connectFunctionsEmulator(functions, 'localhost', 5001);
 
-      // Connect to Firestore emulator
-      connectFirestoreEmulator(firestore, 'localhost', 8080);
+  //     // Connect to Firestore emulator
+  //     connectFirestoreEmulator(firestore, 'localhost', 8080);
 
-      console.log('🔧 Connected to Firebase Emulators');
-    } catch (error) {
-      console.warn('Failed to connect to emulators:', error);
-    }
-  }
+  //     console.log('🔧 Connected to Firebase Emulators');
+  //   } catch (error) {
+  //     console.warn('Failed to connect to emulators:', error);
+  //   }
+  // }
 
   return {
     firebaseApp,

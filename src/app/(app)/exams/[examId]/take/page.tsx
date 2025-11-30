@@ -105,6 +105,10 @@ export default function TakeExamPage() {
 
     // Access denied
     if (!accessCheck.canAccess) {
+        console.log('Access Denied Reason:', accessCheck.reason);
+        console.log('User ID:', user?.uid);
+        console.log('Exam ID:', examId);
+
         return (
             <div className="container mx-auto py-20 max-w-2xl">
                 <Card className="border-destructive">
@@ -139,6 +143,9 @@ export default function TakeExamPage() {
                                 <li>Not have completed the exam already</li>
                                 <li>Have an active enrollment status</li>
                             </ul>
+                            <p className="text-xs text-muted-foreground mt-2">
+                                Debug Info: {user?.uid ? 'Logged In' : 'Not Logged In'} | Exam: {examId}
+                            </p>
                         </div>
 
                         <div className="flex gap-2">
@@ -153,10 +160,6 @@ export default function TakeExamPage() {
                                 </Link>
                             </Button>
                         </div>
-
-                        <p className="text-xs text-muted-foreground">
-                            Redirecting to exam details in 3 seconds...
-                        </p>
                     </CardContent>
                 </Card>
             </div>

@@ -43,32 +43,6 @@ service cloud.firestore {
     function isEnrolled(courseId) {
       return isSignedIn() && exists(/databases/$(database)/documents/enrollments/$(request.auth.uid + '_' + courseId));
     }
-
-    function isEnrolledInExam(examId) {
-      // Check if user has an enrollment for this specific exam
-      return isSignedIn() && exists(/databases/$(database)/documents/enrollments/$(request.auth.uid + '_exam_' + examId));
-    }
-
-    function canAccessExam(courseId, examId) {
-      // User can access exam if:
-      // 1. They are enrolled in the exam specifically, OR
-      // 2. They are enrolled in the parent course, OR
-      // 3. They are the course instructor, OR
-      // 4. They are an admin
-      return isEnrolledInExam(examId) || 
-             isEnrolled(courseId) || 
-             isCourseInstructor(courseId) || 
-             isAdmin();
-    }
-
-    // ------------------------------------------------------------------------
-    // Administrative Collections
-    // ------------------------------------------------------------------------
-
-    match /roles_admin/{userId} {
-      allow read, write: if isAdmin();
-    }
-
     match /audit_logs/{auditLogId} {
       allow get, list: if isAdmin();
       allow create, update, delete: if false;

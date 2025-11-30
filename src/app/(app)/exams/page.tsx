@@ -21,8 +21,10 @@ import {
   CheckCircle2,
   XCircle,
   ShoppingCart,
-  Upload
+  Upload,
+  AlertCircle
 } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Link from 'next/link';
 import { ExamStatusBadge } from '@/components/exam/ExamStatusBadge';
 import { BookingInfo } from '@/components/exam/BookingInfo';
@@ -72,10 +74,7 @@ export default function ExamsPage() {
   );
   const { data: bookings } = useCollection(bookingsQuery);
 
-  // Show error if query failed
-  if (error) {
-    console.error('Error loading exams:', error);
-  }
+
 
   // Filter and sort exams
   const filteredExams = useMemo(() => {
@@ -177,6 +176,27 @@ export default function ExamsPage() {
   const handleImportClick = () => {
     fileInputRef.current?.click();
   };
+
+  // Show error if query failed
+  if (error) {
+    console.error('Error loading exams:', error);
+    return (
+      <div className="container mx-auto py-10">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error Loading Exams</AlertTitle>
+          <AlertDescription>
+            {error.message}
+            {(error as any).code === 'permission-denied' && (
+              <div className="mt-2 text-sm">
+                Please ensure you are logged in and have the correct permissions.
+              </div>
+            )}
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

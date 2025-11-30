@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -129,6 +129,65 @@ export default function ExamDetailPage() {
   const { examId } = useParams();
   const searchParams = useSearchParams();
   const courseId = searchParams.get('courseId');
+  const { user } = useUser();
+  const firestore = useFirestore();
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [resolvedCourseId, setResolvedCourseId] = useState<string | null>(courseId);
+  const [questionDialogOpen, setQuestionDialogOpen] = useState(false);
+  const [selectedQuestion, setSelectedQuestion] = useState<any>(null);
+  const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [isJsonExampleDialogOpen, setJsonExampleDialogOpen] = useState(false);
+
+  // Fetch exam
+  const examDocRef = useMemoFirebase(
+    () => (firestore && resolvedCourseId && examId ? doc(firestore, 'courses', resolvedCourseId, 'exams', examId as string) : null),
+    [firestore, resolvedCourseId, examId]
+  );
+  const { data: exam, isLoading } = useDoc(examDocRef);
+
+  // Fetch questions
+  const questionsQuery = useMemoFirebase(
+    () => (firestore && resolvedCourseId && examId ? query(collection(firestore, 'courses', resolvedCourseId, 'exams', examId as string, 'questions')) : null),
+    [firestore, resolvedCourseId, examId]
+  );
+  const { data: questions, isLoading: isLoadingQuestions } = useCollection(questionsQuery);
+
+  // Check if user is owner
+  const isOwner = user && exam && (exam.createdBy === user.uid || user.uid === exam.instructorId);
+
+  // Form
+  const form = useForm<QuestionFormData>({
+    resolver: zodResolver(questionSchema),
+    defaultValues: {
+      text: '',
+      type: 'Multiple Choice',
+      points: 1,
+      answer: '',
+      options: ['', '', '', ''],
+    },
+  });
+
+  // If courseId is not in URL, try to find it from exam data
+  useEffect(() => {
+    if (!resolvedCourseId && exam?.courseId) {
+      setResolvedCourseId(exam.courseId);
+    }
+  }, [exam, resolvedCourseId]);
+
+  const handleAddQuestion = () => {
+    setSelectedQuestion(null);
+    form.reset({
+      text: '',
+      type: 'Multiple Choice',
+      points: 1,
+      answer: '',
+      options: ['', '', '', ''],
+    });
+    setQuestionDialogOpen(true);
+  };
+
   const handleEditQuestion = (question: any) => {
     setSelectedQuestion(question);
     form.reset({
@@ -145,7 +204,6 @@ export default function ExamDetailPage() {
     setSelectedQuestion(question);
     setDeleteDialogOpen(true);
   };
-
 
   const handleQuestionSubmit = async (data: QuestionFormData) => {
     if (!firestore || !resolvedCourseId || !examId) return;
@@ -201,8 +259,63 @@ export default function ExamDetailPage() {
     }
   };
 
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
 
+  const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !firestore || !resolvedCourseId || !examId) return;
 
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const json = JSON.parse(e.target?.result as string);
+        const validatedQuestions = importedQuestionsSchema.parse(json);
+
+        const batch = writeBatch(firestore);
+        const questionsColRef = collection(firestore, 'courses', resolvedCourseId, 'exams', examId as string, 'questions');
+
+        validatedQuestions.forEach((q) => {
+          const questionRef = doc(questionsColRef);
+          const questionData: any = {
+            text: q.text,
+            type: q.type,
+            points: q.points,
+            answer: q.answer,
+            examId: examId,
+            createdAt: serverTimestamp(),
+          };
+
+          if (q.type === 'Multiple Choice' && q.options) {
+            questionData.options = q.options;
+          }
+
+          batch.set(questionRef, questionData);
+        });
+
+        await batch.commit();
+
+        toast({
+          title: 'Import Successful',
+          description: `Imported ${validatedQuestions.length} questions.`,
+        });
+
+      } catch (error: any) {
+        console.error('Import error:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Import Failed',
+          description: error.message || 'Failed to parse JSON file.',
+        });
+      } finally {
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      }
+    };
+    reader.readAsText(file);
+  };
 
   if (isLoading) {
     return (
@@ -298,12 +411,16 @@ export default function ExamDetailPage() {
                   <Accordion type="single" collapsible className="w-full" key={question.id}>
                     <AccordionItem value={question.id} className="border-b-0">
                       <TableRow className="border-b hover:bg-transparent">
-                        <TableCell className="font-medium w-[50%] align-top">
-                          <AccordionTrigger className="text-left p-0 hover:no-underline [&>svg]:mt-1">{question.text}</AccordionTrigger>
+                        <TableCell>
+                          <AccordionTrigger className="hover:no-underline py-2">
+                            {question.text}
+                          </AccordionTrigger>
                         </TableCell>
-                        <TableCell className="align-top"><Badge variant="outline">{question.type}</Badge></TableCell>
-                        <TableCell className="align-top">{question.points}</TableCell>
-                        <TableCell className="text-right align-top">
+                        <TableCell>
+                          <Badge variant="outline">{question.type}</Badge>
+                        </TableCell>
+                        <TableCell>{question.points}</TableCell>
+                        <TableCell className="text-right">
                           {isOwner && (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -313,38 +430,42 @@ export default function ExamDetailPage() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                <DropdownMenuItem onClick={() => handleEditQuestion(question)}>Edit</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleDeleteQuestion(question)} className="text-red-600">Delete</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleEditQuestion(question)}>
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleDeleteQuestion(question)} className="text-destructive">
+                                  Delete
+                                </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           )}
                         </TableCell>
                       </TableRow>
-                      <AccordionContent asChild>
-                        <tr>
-                          <td colSpan={4} className="p-4 bg-muted/50">
-                            <div className="grid gap-2">
-                              <h4 className="font-semibold">Correct Answer:</h4>
-                              <p className="text-sm text-green-700 font-mono p-2 bg-green-100 rounded-md">{question.answer}</p>
-                              {question.options && question.options.length > 0 && (
-                                <>
-                                  <h4 className="font-semibold mt-2">Options:</h4>
-                                  <ul className="list-disc pl-5 space-y-1">
-                                    {question.options.map((opt: string, i: number) => <li key={i} className="text-sm">{opt}</li>)}
-                                  </ul>
-                                </>
-                              )}
+                      <AccordionContent>
+                        <div className="px-4 py-2 space-y-2">
+                          <div>
+                            <span className="font-semibold">Correct Answer: </span>
+                            <span>{question.answer}</span>
+                          </div>
+                          {question.options && question.options.length > 0 && (
+                            <div>
+                              <span className="font-semibold">Options:</span>
+                              <ul className="list-disc list-inside ml-4">
+                                {question.options.map((opt: string, idx: number) => (
+                                  <li key={idx}>{opt}</li>
+                                ))}
+                              </ul>
                             </div>
-                          </td>
-                        </tr>
+                          )}
+                        </div>
                       </AccordionContent>
                     </AccordionItem>
                   </Accordion>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center h-24">
-                    No questions found. Get started by adding a question.
+                  <TableCell colSpan={4} className="text-center text-muted-foreground">
+                    No questions yet. Add your first question to get started.
                   </TableCell>
                 </TableRow>
               )}
@@ -354,12 +475,12 @@ export default function ExamDetailPage() {
       </Card>
 
       {/* Question Dialog */}
-      <Dialog open={isQuestionDialogOpen} onOpenChange={setQuestionDialogOpen}>
+      <Dialog open={questionDialogOpen} onOpenChange={setQuestionDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{selectedQuestion ? 'Edit Question' : 'Add New Question'}</DialogTitle>
             <DialogDescription>
-              Fill in the details for the question.
+              {selectedQuestion ? 'Update the question details below.' : 'Fill in the details for the new question.'}
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
@@ -371,12 +492,13 @@ export default function ExamDetailPage() {
                   <FormItem>
                     <FormLabel>Question Text</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="What is the capital of Thailand?" {...field} />
+                      <Textarea placeholder="Enter your question" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -384,10 +506,10 @@ export default function ExamDetailPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Question Type</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select a question type" />
+                            <SelectValue placeholder="Select type" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -503,4 +625,3 @@ export default function ExamDetailPage() {
     </div>
   );
 }
-
