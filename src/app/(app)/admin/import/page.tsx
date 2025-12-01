@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Upload, FileJson, CheckCircle2, XCircle, AlertCircle, Download } from 'lucide-react';
 import { validateCoursesData } from '@/lib/import/validation';
+import template from '@/data/template-course.json';
 
 interface ImportStats {
     coursesImported: number;
@@ -141,46 +142,6 @@ export default function ImportPage() {
     };
 
     const downloadTemplate = () => {
-        const template = {
-            courses: [
-                {
-                    id: 'course-example-001',
-                    name: 'ชื่อคอร์ส',
-                    description: 'คำอธิบายคอร์ส',
-                    instructorId: 'admin',
-                    price: 299,
-                    thumbnail: 'https://placehold.co/600x400/png?text=Course+Image',
-                    category: 'หมวดหมู่',
-                    level: 'beginner',
-                    duration: 3600,
-                    enrollment_count: 0,
-                    rating: 0,
-                    exams: [
-                        {
-                            id: 'exam-example-001',
-                            name: 'ชื่อข้อสอบ',
-                            description: 'คำอธิบายข้อสอบ',
-                            duration: 60,
-                            passingScore: 70,
-                            totalQuestions: 2,
-                            price: 99,
-                            questions: [
-                                {
-                                    id: 'q1',
-                                    text: 'คำถามข้อที่ 1',
-                                    type: 'multiple-choice',
-                                    options: ['ตัวเลือก A', 'ตัวเลือก B', 'ตัวเลือก C', 'ตัวเลือก D'],
-                                    correctAnswer: 'ตัวเลือก A',
-                                    explanation: 'คำอธิบายเฉลย',
-                                    points: 1,
-                                },
-                            ],
-                        },
-                    ],
-                },
-            ],
-        };
-
         const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
