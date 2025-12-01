@@ -79,7 +79,6 @@ const courseImportSchema: JSONSchemaType<CourseImportData> = {
                             order: { type: 'number', minimum: 0, nullable: true },
                             chapters: {
                                 type: 'array',
-                                minItems: 1,
                                 items: {
                                     type: 'object',
                                     required: ['name', 'lessons'],
@@ -89,7 +88,6 @@ const courseImportSchema: JSONSchemaType<CourseImportData> = {
                                         order: { type: 'number', minimum: 0, nullable: true },
                                         lessons: {
                                             type: 'array',
-                                            minItems: 1,
                                             items: {
                                                 type: 'object',
                                                 required: ['title', 'content'],
