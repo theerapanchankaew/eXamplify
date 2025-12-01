@@ -312,7 +312,7 @@ export default function ExamsPage() {
         </div>
 
         <Select value={filterStatus} onValueChange={(v: any) => setFilterStatus(v)}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-full md:w-[180px]">
             <Filter className="mr-2 h-4 w-4" />
             <SelectValue placeholder="Filter" />
           </SelectTrigger>
@@ -324,7 +324,7 @@ export default function ExamsPage() {
         </Select>
 
         <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-full md:w-[180px]">
             <SelectValue placeholder="Sort by" />
           </SelectTrigger>
           <SelectContent>
@@ -391,7 +391,7 @@ export default function ExamsPage() {
             const status = getExamStatus();
 
             return (
-              <Card key={exam.id} className="flex flex-col hover:shadow-lg transition-all group">
+              <Card key={exam.id} className="flex flex-col h-full hover:shadow-lg transition-all group">
                 <CardHeader>
                   <div className="flex items-start justify-between mb-2">
                     <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
@@ -402,7 +402,7 @@ export default function ExamsPage() {
                     )}
                   </div>
                   <CardTitle className="line-clamp-2">{exam.name}</CardTitle>
-                  <CardDescription className="line-clamp-3">
+                  <CardDescription className="line-clamp-3 h-[60px]">
                     {exam.description || 'No description available'}
                   </CardDescription>
                 </CardHeader>
@@ -427,18 +427,18 @@ export default function ExamsPage() {
                   )}
                 </CardContent>
 
-                <CardFooter className="flex gap-2">
+                <CardFooter className="mt-auto pt-4 flex-wrap gap-2">
                   {hasCompleted ? (
                     // Already completed - show results
-                    <Button asChild className="flex-1">
-                      <Link href={`/exams/${exam.id}`}>
+                    <Button asChild className="flex-1 min-w-[120px]">
+                      <Link href={`/exams/${exam.id}/results?courseId=${exam.courseId}`}>
                         View Results
                       </Link>
                     </Button>
                   ) : status.state === 'scheduled' || status.state === 'upcoming' ? (
                     // Scheduled - show start exam and view booking
                     <>
-                      <Button asChild className="flex-1">
+                      <Button asChild className="flex-1 min-w-[120px]">
                         <Link href={`/exams/${exam.id}/take?courseId=${exam.courseId}`}>
                           Start Exam
                         </Link>
@@ -453,7 +453,7 @@ export default function ExamsPage() {
                   ) : hasEnrollment ? (
                     // Enrolled (either through course or direct purchase) - can start exam
                     <>
-                      <Button asChild className="flex-1">
+                      <Button asChild className="flex-1 min-w-[120px]">
                         <Link href={`/exams/${exam.id}/take?courseId=${exam.courseId}`}>
                           Start Exam
                         </Link>
@@ -469,7 +469,7 @@ export default function ExamsPage() {
                     // Not enrolled - show add to cart
                     <>
                       <Button
-                        className="flex-1"
+                        className="flex-1 min-w-[120px]"
                         onClick={async () => {
                           if (!firestore || !user) {
                             toast({
@@ -509,7 +509,7 @@ export default function ExamsPage() {
                         Add to Cart
                       </Button>
                       <Button variant="outline" asChild>
-                        <Link href={`/exams/${exam.id}`}>
+                        <Link href={`/exams/${exam.id}?courseId=${exam.courseId}`}>
                           Details
                         </Link>
                       </Button>
@@ -518,7 +518,7 @@ export default function ExamsPage() {
 
                   {/* Admin/Instructor Actions */}
                   {(userProfile?.role === 'Admin' || userProfile?.role === 'Instructor') && (
-                    <div className="flex gap-2 ml-2 border-l pl-2">
+                    <div className="flex gap-1 border-l pl-2 ml-auto">
                       <Button
                         variant="ghost"
                         size="icon"

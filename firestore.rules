@@ -116,7 +116,8 @@ service cloud.firestore {
       );
       
       match /exams/{examId} {
-        allow get, list: if canAccessExam(courseId, examId);
+        allow get: if true;
+        allow list: if canAccessExam(courseId, examId);
         allow create, update, delete: if isAdmin() || isInstructor();
 
         match /questions/{questionId} {
