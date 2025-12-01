@@ -4,6 +4,18 @@ service cloud.firestore {
 
     // ------------------------------------------------------------------------
     // Helper Functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      let user = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return isSignedIn() && user.data.role == 'Admin';
+    }
 
     function hasValidUserCreateData(userId) {
       return request.resource.data.id == userId;
@@ -19,7 +31,7 @@ service cloud.firestore {
 
     function isInstructor() {
       let user = get(/databases/$(database)/documents/users/$(request.auth.uid));
-      return user.data.role == 'Instructor';
+      return isSignedIn() && user.data.role == 'Instructor';
     }
 
     function isCourseInstructor(courseId) {
@@ -59,14 +71,12 @@ service cloud.firestore {
     // GLOBAL RULES (for collectionGroup queries)
     // ------------------------------------------------------------------------
     
-    // Allow public read access to exam metadata (required for collectionGroup queries)
     match /{path=**}/exams/{examId} {
       allow read: if true;
     }
 
-    // Allow users to read exam results (required for collectionGroup queries)
     match /{path=**}/examResults/{resultId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && (isOwner(resource.data.userId) || isAdmin());
     }
 
     // ------------------------------------------------------------------------
@@ -116,7 +126,6 @@ service cloud.firestore {
       }
     }
 
-    // Root-level exams (for legacy support or direct exams)
     match /exams/{examId} {
       allow list: if true;
       allow get: if true;
@@ -172,9 +181,8 @@ service cloud.firestore {
     }
 
     match /examResults/{resultId} {
-      allow get: if isSignedIn() && (isOwner(resource.data.userId) || isAdmin());
-      allow list: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && (isOwner(resource.data.userId) || isAdmin());
+      allow create: if isSignedIn() && isOwner(request.resource.data.userId);
       allow update, delete: if false;
     }
 

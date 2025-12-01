@@ -1,8 +1,12 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import cors from 'cors'; // Corrected import
 
 admin.initializeApp();
 const db = admin.firestore();
+
+// Initialize CORS middleware with default options (allows all origins)
+const corsHandler = cors({ origin: true });
 
 interface GradeExamRequest {
     examId: string;
@@ -21,21 +25,29 @@ interface GradeExamResponse {
 }
 
 /**
- * Server-side exam grading function
+ * Server-side exam grading function (HTTP Request)
  * Prevents answer exposure to client
  */
-export const gradeExam = functions.https.onCall(
-    async (data: GradeExamRequest, context): Promise<GradeExamResponse> => {
+export const gradeExam = functions.https.onRequest((req, res) => {
+    // Use the CORS middleware
+    corsHandler(req, res, async () => {
         // 1. Authentication check
-        if (!context.auth) {
-            throw new functions.https.HttpsError(
-                'unauthenticated',
-                'User must be authenticated to submit exam.'
-            );
+        if (!req.headers.authorization || !req.headers.authorization.startsWith('Bearer ')) {
+            res.status(403).send('Unauthorized');
+            return;
         }
 
-        const userId = context.auth.uid;
-        const { examId, courseId, answers, startTime } = data;
+        const idToken = req.headers.authorization.split('Bearer ')[1];
+        let decodedIdToken;
+        try {
+            decodedIdToken = await admin.auth().verifyIdToken(idToken);
+        } catch (error) {
+            res.status(403).send('Unauthorized');
+            return;
+        }
+
+        const userId = decodedIdToken.uid;
+        const { examId, courseId, answers, startTime } = req.body as GradeExamRequest;
 
         try {
             // 2. Fetch exam details
@@ -43,7 +55,8 @@ export const gradeExam = functions.https.onCall(
             const examSnap = await examRef.get();
 
             if (!examSnap.exists) {
-                throw new functions.https.HttpsError('not-found', 'Exam not found.');
+                res.status(404).json({ error: 'Exam not found.' });
+                return;
             }
 
             const examData = examSnap.data()!;
@@ -55,7 +68,8 @@ export const gradeExam = functions.https.onCall(
                 .get();
 
             if (questionsSnap.empty) {
-                throw new functions.https.HttpsError('not-found', 'No questions found for this exam.');
+                res.status(404).json({ error: 'No questions found for this exam.' });
+                return;
             }
 
             // 4. Grade answers
@@ -71,11 +85,7 @@ export const gradeExam = functions.https.onCall(
 
                 totalPoints += points;
 
-                // Case-insensitive comparison
-                if (
-                    userAnswer &&
-                    userAnswer.trim().toLowerCase() === correctAnswer.trim().toLowerCase()
-                ) {
+                if (userAnswer && userAnswer.trim().toLowerCase() === correctAnswer.trim().toLowerCase()) {
                     score += points;
                 }
             });
@@ -92,7 +102,7 @@ export const gradeExam = functions.https.onCall(
                 totalPoints,
                 percentage,
                 passed,
-                answers, // Store for review (instructor only)
+                answers,
                 submittedAt: admin.firestore.FieldValue.serverTimestamp(),
                 timeSpent: Math.floor((Date.now() - startTime) / 1000),
             });
@@ -100,49 +110,34 @@ export const gradeExam = functions.https.onCall(
             // 6. Issue certificate if passed
             let certificateIssued = false;
             if (passed) {
-                try {
-                    // Check if certificate already exists
-                    const existingCerts = await db
-                        .collection(`users/${userId}/certificates`)
-                        .where('courseId', '==', courseId)
-                        .get();
-
-                    if (existingCerts.empty) {
-                        // Fetch course name
-                        const courseSnap = await db.doc(`courses/${courseId}`).get();
-                        const courseName = courseSnap.exists ? courseSnap.data()!.name : 'Course';
-
-                        // Generate certificate ID
-                        const certId = 'CERT-' + Math.random().toString(36).substr(2, 9).toUpperCase();
-
-                        // Create certificate
-                        await db.collection(`users/${userId}/certificates`).add({
-                            userId,
-                            courseId,
-                            courseName,
-                            instructorName: 'eXamplify Instructor',
-                            issueDate: admin.firestore.FieldValue.serverTimestamp(),
-                            certificateId: certId,
-                            metadata: {
-                                version: '1.0',
-                                issuer: 'eXamplify Platform',
-                                examScore: percentage,
-                            },
-                        });
-
-                        certificateIssued = true;
-                        console.log(`Certificate issued for user ${userId}, course ${courseId}`);
-                    } else {
-                        console.log(`Certificate already exists for user ${userId}, course ${courseId}`);
-                    }
-                } catch (certError) {
-                    console.error('Certificate issuance error:', certError);
-                    // Don't fail the entire grading if certificate fails
-                }
+              try {
+                  const existingCerts = await db.collection(`users/${userId}/certificates`).where('courseId', '==', courseId).get();
+                  if (existingCerts.empty) {
+                      const courseSnap = await db.doc(`courses/${courseId}`).get();
+                      const courseName = courseSnap.exists ? courseSnap.data()!.name : 'Course';
+                      const certId = 'CERT-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+                      await db.collection(`users/${userId}/certificates`).add({
+                          userId,
+                          courseId,
+                          courseName,
+                          instructorName: 'eXamplify Instructor',
+                          issueDate: admin.firestore.FieldValue.serverTimestamp(),
+                          certificateId: certId,
+                          metadata: {
+                              version: '1.0',
+                              issuer: 'eXamplify Platform',
+                              examScore: percentage,
+                          },
+                      });
+                      certificateIssued = true;
+                  }
+              } catch (certError) {
+                  console.error('Certificate issuance error:', certError);
+              }
             }
 
-            // 7. Return result (NO ANSWERS!)
-            return {
+            // 7. Return result
+            const response: GradeExamResponse = {
                 score,
                 totalPoints,
                 percentage,
@@ -150,9 +145,12 @@ export const gradeExam = functions.https.onCall(
                 certificateIssued,
                 resultId: resultRef.id,
             };
+
+            res.status(200).json(response);
+
         } catch (error: any) {
             console.error('Grading error:', error);
-            throw new functions.https.HttpsError('internal', error.message || 'Failed to grade exam.');
+            res.status(500).json({ error: error.message || 'Failed to grade exam.' });
         }
-    }
-);
+    });
+});

@@ -8,8 +8,7 @@ import { QuestionNavigator } from './QuestionNavigator';
 import { ExamReview } from './ExamReview';
 import { ArrowRight, ArrowLeft, Timer, AlertTriangle, Flag, LayoutGrid } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, useUser, useFunctions } from '@/firebase';
-import { httpsCallable } from 'firebase/functions';
+import { useUser } from '@/firebase'; // Removed useFirestore, useFunctions
 import { useExamState } from '@/hooks/use-exam-state';
 import { cn } from '@/lib/utils';
 
@@ -36,11 +35,8 @@ interface ExamTakerProps {
 
 export function ExamTaker({ exam, questions }: ExamTakerProps) {
     const { toast } = useToast();
-    const firestore = useFirestore();
     const { user } = useUser();
-    const functions = useFunctions();
 
-    // Use custom hook for persistent state
     const {
         state,
         setAnswer,
@@ -58,7 +54,6 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
     const [view, setView] = useState<'question' | 'review'>('question');
     const [cameraPermission, setCameraPermission] = useState<boolean | null>(null);
 
-    // Calculate total points
     const totalPoints = questions.reduce((acc, q) => acc + (q.points || 1), 0);
     const passingScore = exam.passingScore || 50;
 
@@ -81,7 +76,7 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
     };
 
     const handleSubmit = async () => {
-        if (!firestore || !user) {
+        if (!user) {
             toast({
                 variant: "destructive",
                 title: "Error",
@@ -93,16 +88,38 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
         setIsSubmitting(true);
 
         try {
-            const gradeExamFn = httpsCallable(functions, 'gradeExam');
+            // 1. Get user's auth token
+            const token = await user.getIdToken();
 
-            const result = await gradeExamFn({
-                examId: exam.id,
-                courseId: exam.courseId,
-                answers: state.answers,
-                startTime: state.startTime,
+            // 2. Define Cloud Function URL from your environment
+            const gradeExamUrl = 'https://us-central1-studio-5931178696-f178e.cloudfunctions.net/gradeExam';
+
+            // 3. Make the fetch request
+            const response = await fetch(gradeExamUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    examId: exam.id,
+                    courseId: exam.courseId,
+                    answers: state.answers,
+                    startTime: state.startTime,
+                }),
             });
 
-            const data = result.data as {
+            if (!response.ok) {
+                // Try to parse error from function, or use default
+                let errorMsg = 'Failed to submit exam.';
+                try {
+                    const errorData = await response.json();
+                    errorMsg = errorData.error || errorMsg;
+                } catch (e) { /* Ignore parsing error */ }
+                throw new Error(errorMsg);
+            }
+
+            const data = await response.json() as {
                 score: number;
                 totalPoints: number;
                 percentage: number;
@@ -111,10 +128,7 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
                 resultId: string;
             };
 
-            // Clear local storage state
             clearState();
-
-            // Mark as finished in local state to show results
             finishExam();
 
             if (data.passed && data.certificateIssued) {
@@ -134,7 +148,6 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
                 });
             }
 
-            // Redirect to results page after a short delay
             setTimeout(() => {
                 window.location.href = `/exams/${exam.id}/results?courseId=${exam.courseId}`;
             }, 2000);
@@ -144,7 +157,7 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
             toast({
                 variant: "destructive",
                 title: "Submission Failed",
-                description: error.message || "Failed to submit exam. Please try again.",
+                description: error.message || "Please try again.",
             });
             setIsSubmitting(false);
         }
@@ -180,8 +193,6 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
         );
     }
 
-    // Since we redirect on success, we don't strictly need to show ExamResults here,
-    // but we keep it for immediate feedback if redirect is slow or fails
     if (state.isFinished) {
         return (
             <div className="flex items-center justify-center min-h-[50vh]">
@@ -199,10 +210,7 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
 
     return (
         <div className="w-full max-w-7xl mx-auto flex flex-col lg:flex-row gap-8 relative pb-20">
-
-            {/* Main Content Area */}
             <div className="flex-1 space-y-6">
-                {/* Header / Progress */}
                 <div className="space-y-4 bg-white/50 dark:bg-zinc-900/50 p-6 rounded-2xl backdrop-blur-sm border border-border/50">
                     <div className="flex justify-between items-center">
                         <div>
@@ -244,7 +252,6 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
                     />
                 ) : (
                     <>
-                        {/* Question Card */}
                         <div className="min-h-[400px] flex items-center">
                             <QuestionCard
                                 question={currentQuestion}
@@ -254,8 +261,6 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
                                 totalQuestions={questions.length}
                             />
                         </div>
-
-                        {/* Navigation */}
                         <div className="flex justify-between pt-4 px-2">
                             <Button
                                 variant="ghost"
@@ -267,7 +272,6 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
                                 <ArrowLeft className="mr-2 h-5 w-5" />
                                 Previous
                             </Button>
-
                             <div className="flex gap-2">
                                 <Button
                                     variant="outline"
@@ -281,7 +285,6 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
                                     <Flag className={cn("mr-2 h-5 w-5", isFlagged && "fill-current")} />
                                     {isFlagged ? 'Flagged' : 'Flag'}
                                 </Button>
-
                                 {state.currentQuestionIndex === questions.length - 1 ? (
                                     <Button
                                         size="lg"
@@ -302,23 +305,19 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
                 )}
             </div>
 
-            {/* Sidebar / Proctoring Feed */}
             <div className="lg:w-80 flex flex-col gap-6">
-                {/* Camera Feed - Sticky on Desktop */}
                 <div className="sticky top-8 space-y-6">
                     <div>
                         <div className="mb-4 flex items-center justify-between">
                             <h3 className="font-semibold">Proctoring Active</h3>
                             <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
                         </div>
-
                         <WebcamMonitor
                             onPermissionGranted={() => setCameraPermission(true)}
                             onPermissionDenied={() => setCameraPermission(false)}
                         />
                     </div>
 
-                    {/* Question Navigator */}
                     <div className="bg-card border rounded-xl p-4 shadow-sm">
                         <QuestionNavigator
                             totalQuestions={questions.length}
@@ -333,7 +332,6 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
                         />
                     </div>
 
-                    {/* Exam Rules / Info */}
                     <div className="p-4 bg-secondary/20 rounded-xl border border-border/50 text-sm space-y-3">
                         <div className="font-medium flex items-center gap-2">
                             <AlertTriangle className="h-4 w-4 text-amber-500" />
@@ -358,7 +356,6 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
                     )}
                 </div>
             </div>
-
         </div>
     );
 }

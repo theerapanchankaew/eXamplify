@@ -70,7 +70,7 @@ export default function ExamsPage() {
 
   // Fetch exam results
   const resultsQuery = useMemoFirebase(
-    () => (firestore && user ? query(collectionGroup(firestore, 'examResults')) : null),
+    () => (firestore && user ? query(collectionGroup(firestore, 'examResults'), where('userId', '==', user.uid)) : null),
     [firestore, user]
   );
   const { data: examResults } = useCollection(resultsQuery);
