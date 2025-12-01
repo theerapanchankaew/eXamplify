@@ -51,8 +51,7 @@ export default function ExamResultsPage() {
         () =>
             firestore && user && result?.passed
                 ? query(
-                    collection(firestore, 'certificates'),
-                    where('userId', '==', user.uid),
+                    collection(firestore, `users/${user.uid}/certificates`),
                     where('examId', '==', examId)
                 )
                 : null,
