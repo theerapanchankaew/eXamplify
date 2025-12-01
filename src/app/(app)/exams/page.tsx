@@ -22,12 +22,25 @@ import {
   XCircle,
   ShoppingCart,
   Upload,
-  AlertCircle
+  AlertCircle,
+  Pencil,
+  Trash2
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import Link from 'next/link';
 import { ExamStatusBadge } from '@/components/exam/ExamStatusBadge';
 import { BookingInfo } from '@/components/exam/BookingInfo';
+import { deleteExam } from '@/lib/admin/exams';
 
 export default function ExamsPage() {
   const { user } = useUser();
@@ -37,6 +50,8 @@ export default function ExamsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'available' | 'completed'>('all');
   const [sortBy, setSortBy] = useState<'name' | 'date' | 'difficulty'>('name');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [examToDelete, setExamToDelete] = useState<{ courseId: string; examId: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch user profile
@@ -73,8 +88,6 @@ export default function ExamsPage() {
     [firestore, user]
   );
   const { data: bookings } = useCollection(bookingsQuery);
-
-
 
   // Filter and sort exams
   const filteredExams = useMemo(() => {
@@ -502,12 +515,80 @@ export default function ExamsPage() {
                       </Button>
                     </>
                   )}
+
+                  {/* Admin/Instructor Actions */}
+                  {(userProfile?.role === 'Admin' || userProfile?.role === 'Instructor') && (
+                    <div className="flex gap-2 ml-2 border-l pl-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        asChild
+                        title="Edit Exam"
+                      >
+                        <Link href={`/admin/exams/${exam.id}/edit?courseId=${exam.courseId}`}>
+                          <Pencil className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => {
+                          setExamToDelete({ courseId: exam.courseId, examId: exam.id });
+                          setDeleteDialogOpen(true);
+                        }}
+                        title="Delete Exam"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </CardFooter>
               </Card>
             );
           })}
         </div>
       )}
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this exam and all its questions. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!firestore || !examToDelete) return;
+                try {
+                  await deleteExam(firestore, examToDelete.courseId, examToDelete.examId);
+                  toast({
+                    title: 'Success',
+                    description: 'Exam deleted successfully',
+                  });
+                  // Refresh logic is handled by real-time listener in useCollection
+                } catch (error) {
+                  console.error('Error deleting exam:', error);
+                  toast({
+                    title: 'Error',
+                    description: 'Failed to delete exam',
+                    variant: 'destructive',
+                  });
+                } finally {
+                  setDeleteDialogOpen(false);
+                  setExamToDelete(null);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

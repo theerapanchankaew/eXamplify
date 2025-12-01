@@ -39,7 +39,8 @@ export async function checkEnrollment(
 export async function canAccessExam(
     firestore: Firestore,
     userId: string,
-    examId: string
+    examId: string,
+    providedCourseId?: string | null
 ): Promise<{
     canAccess: boolean;
     reason?: string;
@@ -90,6 +91,36 @@ export async function canAccessExam(
             }
 
             // Fallback: search for exam if courseId not stored (legacy enrollments)
+            // If providedCourseId is available, try that first
+            if (providedCourseId) {
+                const examRef = doc(firestore, `courses/${providedCourseId}/exams/${examId}`);
+                const examSnap = await getDoc(examRef);
+                if (examSnap.exists()) {
+                    const examDoc = examSnap.data();
+                    // Check completion...
+                    const resultsQuery = query(
+                        collection(firestore, 'examResults'),
+                        where('userId', '==', userId),
+                        where('examId', '==', examId)
+                    );
+                    const resultsSnap = await getDocs(resultsQuery);
+
+                    if (!resultsSnap.empty) {
+                        return {
+                            canAccess: false,
+                            reason: 'You have already completed this exam',
+                            courseId: providedCourseId,
+                            examName: examDoc.name,
+                        };
+                    }
+                    return {
+                        canAccess: true,
+                        courseId: providedCourseId,
+                        examName: examDoc.name,
+                    };
+                }
+            }
+
             const coursesSnap = await getDocs(collection(firestore, 'courses'));
 
             for (const courseDoc of coursesSnap.docs) {
@@ -126,27 +157,32 @@ export async function canAccessExam(
         }
 
         // If no direct exam enrollment, check course enrollment (original logic)
-        // Find the exam using collectionGroup query
-        const examsQuery = query(
-            collection(firestore, 'exams'),
-            where('__name__', '==', examId)
-        );
 
-        // Try to find exam in all courses
         let examDoc = null;
-        let courseId = null;
+        let courseId = providedCourseId || null;
 
-        // Search through courses to find the exam
-        const coursesSnap = await getDocs(collection(firestore, 'courses'));
-
-        for (const courseDoc of coursesSnap.docs) {
-            const examRef = doc(firestore, `courses/${courseDoc.id}/exams/${examId}`);
+        // If courseId provided, check directly
+        if (courseId) {
+            const examRef = doc(firestore, `courses/${courseId}/exams/${examId}`);
             const examSnap = await getDoc(examRef);
-
             if (examSnap.exists()) {
                 examDoc = examSnap.data();
-                courseId = courseDoc.id;
-                break;
+            }
+        }
+
+        // If not found yet, search through courses
+        if (!examDoc) {
+            const coursesSnap = await getDocs(collection(firestore, 'courses'));
+
+            for (const courseDoc of coursesSnap.docs) {
+                const examRef = doc(firestore, `courses/${courseDoc.id}/exams/${examId}`);
+                const examSnap = await getDoc(examRef);
+
+                if (examSnap.exists()) {
+                    examDoc = examSnap.data();
+                    courseId = courseDoc.id;
+                    break;
+                }
             }
         }
 

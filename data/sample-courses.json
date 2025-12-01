@@ -1,0 +1,221 @@
+{
+    "courses": [
+        {
+            "id": "course-thai-civil-service",
+            "name": "ข้อสอบข้าราชการไทย - ความรู้ทั่วไป",
+            "description": "ชุดข้อสอบเตรียมสอบข้าราชการไทย ครอบคลุมความรู้ทั่วไป กฎหมาย และเหตุการณ์ปัจจุบัน",
+            "instructorId": "admin",
+            "price": 299,
+            "thumbnail": "https://placehold.co/600x400/png?text=Thai+Civil+Service",
+            "category": "Government Exam",
+            "level": "intermediate",
+            "duration": 7200,
+            "enrollment_count": 0,
+            "rating": 0,
+            "exams": [
+                {
+                    "id": "exam-general-knowledge-01",
+                    "name": "ความรู้ทั่วไป ชุดที่ 1",
+                    "description": "ข้อสอบความรู้ทั่วไปสำหรับสอบข้าราชการ ครอบคลุมประวัติศาสตร์ ภูมิศาสตร์ และวิทยาศาสตร์",
+                    "duration": 60,
+                    "passingScore": 70,
+                    "totalQuestions": 5,
+                    "price": 99,
+                    "questions": [
+                        {
+                            "id": "q1",
+                            "text": "ประเทศไทยมีพื้นที่ประมาณกี่ตารางกิโลเมตร?",
+                            "type": "multiple-choice",
+                            "options": [
+                                "313,000",
+                                "413,000",
+                                "513,000",
+                                "613,000"
+                            ],
+                            "correctAnswer": "513,000",
+                            "explanation": "ประเทศไทยมีพื้นที่ประมาณ 513,000 ตารางกิโลเมตร",
+                            "points": 1
+                        },
+                        {
+                            "id": "q2",
+                            "text": "กรุงเทพมหานครตั้งอยู่ริมฝั่งแม่น้ำอะไร?",
+                            "type": "multiple-choice",
+                            "options": [
+                                "แม่น้ำเจ้าพระยา",
+                                "แม่น้ำโขง",
+                                "แม่น้ำปิง",
+                                "แม่น้ำน่าน"
+                            ],
+                            "correctAnswer": "แม่น้ำเจ้าพระยา",
+                            "explanation": "กรุงเทพมหานครตั้งอยู่ริมฝั่งแม่น้ำเจ้าพระยา",
+                            "points": 1
+                        },
+                        {
+                            "id": "q3",
+                            "text": "รัฐธรรมนูญแห่งราชอาณาจักรไทย พ.ศ. 2560 มีกี่มาตรา?",
+                            "type": "multiple-choice",
+                            "options": [
+                                "270",
+                                "279",
+                                "289",
+                                "299"
+                            ],
+                            "correctAnswer": "279",
+                            "explanation": "รัฐธรรมนูญแห่งราชอาณาจักรไทย พ.ศ. 2560 มี 279 มาตรา",
+                            "points": 1
+                        },
+                        {
+                            "id": "q4",
+                            "text": "ประเทศไทยมีกี่จังหวัด?",
+                            "type": "multiple-choice",
+                            "options": [
+                                "75",
+                                "76",
+                                "77",
+                                "78"
+                            ],
+                            "correctAnswer": "77",
+                            "explanation": "ประเทศไทยมี 77 จังหวัด",
+                            "points": 1
+                        },
+                        {
+                            "id": "q5",
+                            "text": "สกุลเงินของประเทศไทยคืออะไร?",
+                            "type": "multiple-choice",
+                            "options": [
+                                "บาท",
+                                "ดอลลาร์",
+                                "ยูโร",
+                                "เยน"
+                            ],
+                            "correctAnswer": "บาท",
+                            "explanation": "สกุลเงินของประเทศไทยคือบาท (THB)",
+                            "points": 1
+                        }
+                    ]
+                },
+                {
+                    "id": "exam-law-basics-01",
+                    "name": "กฎหมายพื้นฐาน ชุดที่ 1",
+                    "description": "ข้อสอบกฎหมายพื้นฐานที่ควรรู้สำหรับสอบข้าราชการ",
+                    "duration": 45,
+                    "passingScore": 70,
+                    "totalQuestions": 3,
+                    "price": 79,
+                    "questions": [
+                        {
+                            "id": "q1",
+                            "text": "ประมวลกฎหมายแพ่งและพาณิชย์ใช้บังคับเมื่อใด?",
+                            "type": "multiple-choice",
+                            "options": [
+                                "พ.ศ. 2466",
+                                "พ.ศ. 2476",
+                                "พ.ศ. 2486",
+                                "พ.ศ. 2496"
+                            ],
+                            "correctAnswer": "พ.ศ. 2466",
+                            "explanation": "ประมวลกฎหมายแพ่งและพาณิชย์ใช้บังคับตั้งแต่ พ.ศ. 2466",
+                            "points": 1
+                        },
+                        {
+                            "id": "q2",
+                            "text": "บุคคลมีความสามารถในการทำนิติกรรมเมื่ออายุเท่าไร?",
+                            "type": "multiple-choice",
+                            "options": [
+                                "15 ปีบริบูรณ์",
+                                "18 ปีบริบูรณ์",
+                                "20 ปีบริบูรณ์",
+                                "25 ปีบริบูรณ์"
+                            ],
+                            "correctAnswer": "20 ปีบริบูรณ์",
+                            "explanation": "บุคคลมีความสามารถในการทำนิติกรรมเมื่ออายุ 20 ปีบริบูรณ์",
+                            "points": 1
+                        },
+                        {
+                            "id": "q3",
+                            "text": "สัญญาที่ทำเป็นหนังสือต้องมีพยานกี่คน?",
+                            "type": "multiple-choice",
+                            "options": [
+                                "1 คน",
+                                "2 คน",
+                                "3 คน",
+                                "ไม่จำเป็นต้องมีพยาน"
+                            ],
+                            "correctAnswer": "2 คน",
+                            "explanation": "สัญญาที่ทำเป็นหนังสือต้องมีพยานอย่างน้อย 2 คน",
+                            "points": 1
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "course-english-toeic",
+            "name": "TOEIC Preparation Course",
+            "description": "Complete TOEIC preparation course with practice exams",
+            "instructorId": "admin",
+            "price": 499,
+            "thumbnail": "https://placehold.co/600x400/png?text=TOEIC+Prep",
+            "category": "Language",
+            "level": "intermediate",
+            "duration": 10800,
+            "enrollment_count": 0,
+            "rating": 0,
+            "exams": [
+                {
+                    "id": "exam-toeic-reading-01",
+                    "name": "TOEIC Reading Practice Test 1",
+                    "description": "Practice test for TOEIC reading section",
+                    "duration": 75,
+                    "passingScore": 60,
+                    "totalQuestions": 3,
+                    "price": 149,
+                    "questions": [
+                        {
+                            "id": "q1",
+                            "text": "The company _____ a new product next month.",
+                            "type": "multiple-choice",
+                            "options": [
+                                "launch",
+                                "launches",
+                                "will launch",
+                                "launched"
+                            ],
+                            "correctAnswer": "will launch",
+                            "explanation": "Future tense is needed for 'next month'",
+                            "points": 1
+                        },
+                        {
+                            "id": "q2",
+                            "text": "She has been working here _____ five years.",
+                            "type": "multiple-choice",
+                            "options": [
+                                "since",
+                                "for",
+                                "during",
+                                "while"
+                            ],
+                            "correctAnswer": "for",
+                            "explanation": "'For' is used with a period of time",
+                            "points": 1
+                        },
+                        {
+                            "id": "q3",
+                            "text": "The meeting was _____ until next week.",
+                            "type": "multiple-choice",
+                            "options": [
+                                "postponed",
+                                "delayed",
+                                "cancelled",
+                                "rescheduled"
+                            ],
+                            "correctAnswer": "postponed",
+                            "explanation": "'Postponed' means moved to a later time",
+                            "points": 1
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,58 @@
+{
+    "courses": [
+        {
+            "id": "course-example-001",
+            "name": "ชื่อคอร์ส",
+            "description": "คำอธิบายคอร์ส",
+            "instructorId": "admin",
+            "price": 299,
+            "thumbnail": "https://placehold.co/600x400/png?text=Course+Image",
+            "category": "หมวดหมู่",
+            "level": "beginner",
+            "duration": 3600,
+            "enrollment_count": 0,
+            "rating": 0,
+            "exams": [
+                {
+                    "id": "exam-example-001",
+                    "name": "ชื่อข้อสอบ",
+                    "description": "คำอธิบายข้อสอบ",
+                    "duration": 60,
+                    "passingScore": 70,
+                    "totalQuestions": 2,
+                    "price": 99,
+                    "questions": [
+                        {
+                            "id": "q1",
+                            "text": "คำถามข้อที่ 1",
+                            "type": "multiple-choice",
+                            "options": [
+                                "ตัวเลือก A",
+                                "ตัวเลือก B",
+                                "ตัวเลือก C",
+                                "ตัวเลือก D"
+                            ],
+                            "correctAnswer": "ตัวเลือก A",
+                            "explanation": "คำอธิบายเฉลย",
+                            "points": 1
+                        },
+                        {
+                            "id": "q2",
+                            "text": "คำถามข้อที่ 2",
+                            "type": "multiple-choice",
+                            "options": [
+                                "ตัวเลือก A",
+                                "ตัวเลือก B",
+                                "ตัวเลือก C",
+                                "ตัวเลือก D"
+                            ],
+                            "correctAnswer": "ตัวเลือก B",
+                            "explanation": "คำอธิบายเฉลย",
+                            "points": 1
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

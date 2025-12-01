@@ -16,10 +16,12 @@ import type { SlideEditorHandle } from '@/components/lesson/SlideEditor/SlideEdi
 
 export default function LessonEditPage() {
     const { courseId, moduleId, chapterId, lessonId } = useParams();
-    const { user } = useUser();
+    const { user, isUserLoading } = useUser();
     const firestore = useFirestore();
     const { toast } = useToast();
     const router = useRouter();
+
+    const editorRef = React.useRef<SlideEditorHandle>(null);
 
     // Fetch lesson
     const lessonRef = useMemoFirebase(
@@ -46,9 +48,9 @@ export default function LessonEditPage() {
         () => (firestore && user ? doc(firestore, 'users', user.uid) : null),
         [firestore, user]
     );
-    const { data: userProfile } = useDoc(userProfileRef);
+    const { data: userProfile, isLoading: userProfileLoading } = useDoc(userProfileRef);
 
-    const isLoading = lessonLoading || courseLoading;
+    const isLoading = lessonLoading || courseLoading || userProfileLoading || isUserLoading;
 
     // Authorization check
     const isAuthorized =
@@ -61,7 +63,9 @@ export default function LessonEditPage() {
             throw new Error('Firestore not initialized');
         }
         try {
-            await updateDoc(lessonRef, { slides, updatedAt: new Date() });
+            // Sanitize slides to remove undefined values which Firestore doesn't support
+            const sanitizedSlides = JSON.parse(JSON.stringify(slides));
+            await updateDoc(lessonRef, { slides: sanitizedSlides, updatedAt: new Date() });
         } catch (error: any) {
             console.error('Error saving slides:', error);
             throw new Error(error.message || 'Failed to save slides');
@@ -71,12 +75,13 @@ export default function LessonEditPage() {
     // Redirect if not authorized
     useEffect(() => {
         if (!isLoading && !isAuthorized) {
-            toast({
-                variant: 'destructive',
-                title: 'Access Denied',
-                description: 'You do not have permission to edit this lesson.',
-            });
-            router.push(`/courses/${courseId}`);
+            // console.log('Redirecting due to unauthorized access');
+            // toast({
+            //     variant: 'destructive',
+            //     title: 'Access Denied',
+            //     description: 'You do not have permission to edit this lesson.',
+            // });
+            // router.push(`/courses/${courseId}`);
         }
     }, [isLoading, isAuthorized, courseId, router, toast]);
 
@@ -103,10 +108,32 @@ export default function LessonEditPage() {
     }
 
     if (!isAuthorized) {
-        return null; // Redirect handled in effect
+        return (
+            <div className="container mx-auto py-10">
+                <div className="p-4 border border-red-500 rounded bg-red-50">
+                    <h3 className="text-lg font-bold text-red-700 mb-2">Access Denied Debug Info</h3>
+                    <pre className="text-sm overflow-auto p-2 bg-white rounded border">
+                        {JSON.stringify({
+                            userUid: user?.uid,
+                            userProfileRole: userProfile?.role,
+                            courseInstructorId: course?.instructorId,
+                            isAuthorized,
+                            isLoading,
+                            userProfileExists: !!userProfile,
+                            courseExists: !!course
+                        }, null, 2)}
+                    </pre>
+                    <div className="mt-4">
+                        <Button asChild variant="outline">
+                            <Link href={`/courses/${courseId}`}>Back to Course</Link>
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        );
     }
 
-    const editorRef = React.useRef<SlideEditorHandle>(null);
+
 
     return (
         <div className="container mx-auto py-10">

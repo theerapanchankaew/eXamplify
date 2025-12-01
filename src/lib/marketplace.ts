@@ -248,37 +248,14 @@ export async function processCheckout(
                     status: 'active',
                     progress: 0,
                 });
-
-                // Increment enrollment count
-                const courseRef = doc(firestore, 'courses', item.itemId);
-                batch.update(courseRef, { enrollment_count: increment(1) });
             } else if (item.itemType === 'exam') {
-                // For exams, we need to find the courseId first
-                // Exams are stored as subcollections under courses
-                // We need to search for the exam to find its courseId
-
-                // Try to find the exam's courseId by searching all courses
-                const coursesSnapshot = await getDocs(collection(firestore, 'courses'));
-                let examCourseId = null;
-
-                for (const courseDoc of coursesSnapshot.docs) {
-                    const examRef = doc(firestore, 'courses', courseDoc.id, 'exams', item.itemId);
-                    const examSnap = await getDoc(examRef);
-                    if (examSnap.exists()) {
-                        examCourseId = courseDoc.id;
-                        break;
-                    }
-                }
-
-                // Create enrollment with both examId and courseId
                 const enrollmentRef = doc(firestore, 'enrollments', `${userId}_exam_${item.itemId}`);
                 batch.set(enrollmentRef, {
                     userId,
                     examId: item.itemId,
-                    courseId: examCourseId, // Store courseId for easier access
                     enrolledAt: serverTimestamp(),
                     status: 'active',
-                    type: 'exam',
+                    progress: 0,
                 });
             }
         }
@@ -299,6 +276,7 @@ export async function processCheckout(
         await batch.commit();
 
         return { success: true, orderId: orderRef.id };
+
     } catch (error: any) {
         console.error('Checkout error:', error);
         return { success: false, error: error.message || 'Checkout failed' };

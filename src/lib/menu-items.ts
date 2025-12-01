@@ -1,6 +1,6 @@
 import type { NavItem } from '@/lib/types';
 import {
-  LayoutGrid,
+  LayoutDashboard,
   Users,
   BookOpen,
   FileQuestion,
@@ -8,15 +8,19 @@ import {
   Calendar,
   GraduationCap,
   Award,
-  BarChart2,
+  BarChart3,
   MessageSquare,
   Settings,
   User,
-  CreditCard,
-  Building,
-  ShoppingBag,
+  Wallet,
+  ShoppingCart,
   CalendarClock,
+  Library,
+  Target,
+  Home,
+  Upload,
 } from 'lucide-react';
+
 
 type Role = 'Admin' | 'Instructor' | 'Student';
 export type MenuCategory = {
@@ -26,48 +30,33 @@ export type MenuCategory = {
 };
 
 const allMenuItems: MenuCategory[] = [
+  // Main Navigation - Always visible first
   {
-    label: 'Management',
-    roles: ['Admin', 'Instructor'],
+    label: 'Main',
+    roles: ['Admin', 'Instructor', 'Student'],
     items: [
       {
         label: 'Dashboard',
         href: '/dashboard',
-        icon: LayoutGrid,
+        icon: LayoutDashboard,
         roles: ['Admin', 'Instructor', 'Student'],
       },
-      {
-        label: 'Users',
-        href: '/users',
-        icon: Users,
-        roles: ['Admin'],
-      },
-      {
-        label: 'Admin Schedules',
-        href: '/admin/schedules',
-        icon: CalendarClock,
-        roles: ['Admin', 'Instructor'],
-      },
-      {
-        label: 'Reports',
-        href: '/reports',
-        icon: BarChart2,
-        roles: ['Admin'],
-      },
-    ]
-  },
-  {
-    label: 'Content',
-    roles: ['Admin', 'Instructor', 'Student'],
-    items: [
       {
         label: 'Marketplace',
         href: '/marketplace',
-        icon: ShoppingBag,
+        icon: ShoppingCart,
         roles: ['Admin', 'Instructor', 'Student'],
       },
+    ]
+  },
+
+  // Learning - Student focused
+  {
+    label: 'Learning',
+    roles: ['Admin', 'Instructor', 'Student'],
+    items: [
       {
-        label: 'Courses',
+        label: 'My Courses',
         href: '/courses',
         icon: BookOpen,
         roles: ['Admin', 'Instructor', 'Student'],
@@ -79,27 +68,9 @@ const allMenuItems: MenuCategory[] = [
         roles: ['Admin', 'Instructor', 'Student'],
       },
       {
-        label: 'Master Courses',
-        href: '/master-courses',
-        icon: GraduationCap,
-        roles: ['Admin', 'Instructor'],
-      },
-    ]
-  },
-  {
-    label: 'Student Tools',
-    roles: ['Admin', 'Student'],
-    items: [
-      {
-        label: 'My Bookings',
-        href: '/my-bookings',
-        icon: Calendar,
-        roles: ['Admin', 'Student'],
-      },
-      {
         label: 'Roadmap',
         href: '/roadmap',
-        icon: GitMerge,
+        icon: Target,
         roles: ['Admin', 'Student'],
       },
       {
@@ -110,8 +81,74 @@ const allMenuItems: MenuCategory[] = [
       },
     ]
   },
+
+  // Schedule & Bookings
   {
-    label: 'General',
+    label: 'Schedule',
+    roles: ['Admin', 'Instructor', 'Student'],
+    items: [
+      {
+        label: 'My Schedule',
+        href: '/schedule',
+        icon: Calendar,
+        roles: ['Admin', 'Instructor', 'Student'],
+      },
+      {
+        label: 'My Bookings',
+        href: '/my-bookings',
+        icon: CalendarClock,
+        roles: ['Admin', 'Student'],
+      },
+    ]
+  },
+
+  // Admin & Management
+  {
+    label: 'Management',
+    roles: ['Admin', 'Instructor'],
+    items: [
+      {
+        label: 'Users',
+        href: '/users',
+        icon: Users,
+        roles: ['Admin'],
+      },
+      {
+        label: 'Master Courses',
+        href: '/master-courses',
+        icon: Library,
+        roles: ['Admin', 'Instructor'],
+      },
+      {
+        label: 'Exam Schedules',
+        href: '/admin/schedules',
+        icon: CalendarClock,
+        roles: ['Admin', 'Instructor'],
+      },
+      {
+        label: 'Analytics',
+        href: '/reports',
+        icon: BarChart3,
+        roles: ['Admin'],
+      },
+      {
+        label: 'Import Data',
+        href: '/admin/import',
+        icon: Upload,
+        roles: ['Admin'],
+      },
+      {
+        label: 'Manage Exams',
+        href: '/admin/exams',
+        icon: FileQuestion,
+        roles: ['Admin', 'Instructor'],
+      },
+    ]
+  },
+
+  // Community & Account
+  {
+    label: 'Account',
     roles: ['Admin', 'Instructor', 'Student'],
     items: [
       {
@@ -121,22 +158,16 @@ const allMenuItems: MenuCategory[] = [
         roles: ['Admin', 'Instructor', 'Student'],
       },
       {
-        label: 'Schedule',
-        href: '/schedule',
-        icon: Calendar,
-        roles: ['Admin', 'Instructor', 'Student'],
+        label: 'Wallet',
+        href: '/billing',
+        icon: Wallet,
+        roles: ['Admin', 'Student'],
       },
       {
         label: 'Community',
         href: '/community',
         icon: MessageSquare,
         roles: ['Admin', 'Instructor', 'Student'],
-      },
-      {
-        label: 'Billing',
-        href: '/billing',
-        icon: CreditCard,
-        roles: ['Admin', 'Student'],
       },
     ]
   }

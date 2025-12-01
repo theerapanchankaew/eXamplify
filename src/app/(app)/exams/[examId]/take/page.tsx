@@ -28,6 +28,7 @@ export default function TakeExamPage() {
         canAccess: boolean;
         reason?: string;
         examName?: string;
+        courseId?: string;
     }>({
         loading: true,
         canAccess: false,
@@ -45,13 +46,14 @@ export default function TakeExamPage() {
                 return;
             }
 
-            const result = await canAccessExam(firestore, user.uid, examId as string);
+            const result = await canAccessExam(firestore, user.uid, examId as string, courseId);
 
             setAccessCheck({
                 loading: false,
                 canAccess: result.canAccess,
                 reason: result.reason,
                 examName: result.examName,
+                courseId: result.courseId,
             });
 
             // If we found a courseId from the access check and didn't have one, use it
@@ -70,27 +72,39 @@ export default function TakeExamPage() {
         verifyAccess();
     }, [firestore, user, examId, router, resolvedCourseId]);
 
-    // Exam Data
+    // Fetch exam data
     const examDocRef = useMemoFirebase(
-        () =>
-            firestore && resolvedCourseId && examId
-                ? doc(firestore, 'courses', resolvedCourseId, 'exams', examId as string)
-                : null,
-        [firestore, resolvedCourseId, examId]
-    );
-    const { data: exam, isLoading: isLoadingExam } = useDoc(examDocRef);
+        () => {
+            if (!firestore || !examId) return null;
 
-    // Questions Data
+            // All exams are nested under courses
+            // Use the courseId from accessCheck if available
+            if (accessCheck?.courseId) {
+                return doc(firestore, `courses/${accessCheck.courseId}/exams/${examId}`);
+            }
+
+            return null;
+        },
+        [firestore, examId, accessCheck?.courseId]
+    );
+
+    const { data: examData } = useDoc(examDocRef);
+
+    // Fetch questions
     const questionsQuery = useMemoFirebase(
-        () =>
-            firestore && resolvedCourseId && examId
-                ? query(collection(firestore, 'courses', resolvedCourseId, 'exams', examId as string, 'questions'))
-                : null,
-        [firestore, resolvedCourseId, examId]
-    );
-    const { data: questions, isLoading: isLoadingQuestions } = useCollection(questionsQuery);
+        () => {
+            if (!firestore || !examId || !accessCheck?.courseId) return null;
 
-    const isLoading = isLoadingExam || isLoadingQuestions || accessCheck.loading || (accessCheck.canAccess && !exam);
+            return query(
+                collection(firestore, `courses/${accessCheck.courseId}/exams/${examId}/questions`)
+            );
+        },
+        [firestore, examId, accessCheck?.courseId]
+    );
+
+    const { data: questions } = useCollection(questionsQuery);
+
+    const isLoading = accessCheck.loading || (accessCheck.canAccess && !examData);
 
     // Loading state
     if (isLoading) {
@@ -105,10 +119,6 @@ export default function TakeExamPage() {
 
     // Access denied
     if (!accessCheck.canAccess) {
-        console.log('Access Denied Reason:', accessCheck.reason);
-        console.log('User ID:', user?.uid);
-        console.log('Exam ID:', examId);
-
         return (
             <div className="container mx-auto py-20 max-w-2xl">
                 <Card className="border-destructive">
@@ -139,13 +149,10 @@ export default function TakeExamPage() {
                                 To take this exam, you need to:
                             </p>
                             <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
-                                <li>Be enrolled in the course</li>
+                                <li>Be enrolled in the course or purchase the exam</li>
                                 <li>Not have completed the exam already</li>
                                 <li>Have an active enrollment status</li>
                             </ul>
-                            <p className="text-xs text-muted-foreground mt-2">
-                                Debug Info: {user?.uid ? 'Logged In' : 'Not Logged In'} | Exam: {examId}
-                            </p>
                         </div>
 
                         <div className="flex gap-2">
@@ -167,7 +174,7 @@ export default function TakeExamPage() {
     }
 
     // Exam not found
-    if (!exam) {
+    if (!examData) {
         return (
             <div className="container mx-auto py-20 text-center">
                 <h2 className="text-2xl font-bold">Exam not found</h2>
@@ -186,12 +193,12 @@ export default function TakeExamPage() {
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Exit Exam
                 </Link>
-                <h1 className="text-3xl font-bold tracking-tight">{exam.name}</h1>
-                <p className="text-muted-foreground mt-2 max-w-3xl">{exam.description}</p>
+                <h1 className="text-3xl font-bold tracking-tight">{examData.name}</h1>
+                <p className="text-muted-foreground mt-2 max-w-3xl">{examData.description}</p>
             </div>
 
             <ExamTaker
-                exam={{ ...exam, id: examId as string, courseId: courseId as string }}
+                exam={{ ...examData, id: examId as string, courseId: accessCheck.courseId as string }}
                 questions={questions?.map(q => ({ ...q, id: q.id })) || []}
             />
         </div>
