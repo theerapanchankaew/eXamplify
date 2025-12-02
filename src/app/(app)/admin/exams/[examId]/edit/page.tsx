@@ -23,7 +23,6 @@ import {
     updateExam,
     Question,
     ExamData,
-    ExamWithQuestions,
 } from '@/lib/admin/exams';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -269,8 +268,8 @@ export default function EditExamPage() {
                             />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
+                        <div className="flex flex-wrap gap-4">
+                            <div className="space-y-2 flex-1 basis-48">
                                 <Label htmlFor="exam-duration">Duration (minutes)</Label>
                                 <Input
                                     id="exam-duration"
@@ -283,7 +282,7 @@ export default function EditExamPage() {
                                 />
                             </div>
 
-                            <div className="space-y-2">
+                            <div className="space-y-2 flex-1 basis-48">
                                 <Label htmlFor="exam-passing-score">Passing Score (%)</Label>
                                 <Input
                                     id="exam-passing-score"
@@ -298,8 +297,8 @@ export default function EditExamPage() {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
+                        <div className="flex flex-wrap gap-4">
+                            <div className="space-y-2 flex-1 basis-48">
                                 <Label htmlFor="exam-price">Price (tokens)</Label>
                                 <Input
                                     id="exam-price"
@@ -312,7 +311,7 @@ export default function EditExamPage() {
                                 />
                             </div>
 
-                            <div className="space-y-2">
+                            <div className="space-y-2 flex-1 basis-48">
                                 <Label htmlFor="exam-status">Status</Label>
                                 <Select
                                     value={examData.status}

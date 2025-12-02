@@ -1,7 +1,6 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, AlertCircle, Flag } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 interface ExamReviewProps {
     questions: { id: string; text: string }[];
@@ -33,8 +32,8 @@ export function ExamReview({
                 </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-green-50 dark:bg-green-900/20 p-6 rounded-xl border border-green-200 dark:border-green-900 text-center">
+            <div className="flex flex-wrap gap-4">
+                <div className="flex-1 basis-64 bg-green-50 dark:bg-green-900/20 p-6 rounded-xl border border-green-200 dark:border-green-900 text-center">
                     <div className="mx-auto w-12 h-12 bg-green-100 dark:bg-green-900/40 rounded-full flex items-center justify-center mb-3">
                         <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
                     </div>
@@ -42,7 +41,7 @@ export function ExamReview({
                     <div className="text-sm text-green-600 dark:text-green-500">Answered</div>
                 </div>
 
-                <div className="bg-amber-50 dark:bg-amber-900/20 p-6 rounded-xl border border-amber-200 dark:border-amber-900 text-center">
+                <div className="flex-1 basis-64 bg-amber-50 dark:bg-amber-900/20 p-6 rounded-xl border border-amber-200 dark:border-amber-900 text-center">
                     <div className="mx-auto w-12 h-12 bg-amber-100 dark:bg-amber-900/40 rounded-full flex items-center justify-center mb-3">
                         <Flag className="h-6 w-6 text-amber-600 dark:text-amber-400" />
                     </div>
@@ -50,7 +49,7 @@ export function ExamReview({
                     <div className="text-sm text-amber-600 dark:text-amber-500">Flagged</div>
                 </div>
 
-                <div className="bg-slate-50 dark:bg-slate-900/20 p-6 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
+                <div className="flex-1 basis-64 bg-slate-50 dark:bg-slate-900/20 p-6 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
                     <div className="mx-auto w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-3">
                         <AlertCircle className="h-6 w-6 text-slate-600 dark:text-slate-400" />
                     </div>
@@ -60,9 +59,9 @@ export function ExamReview({
             </div>
 
             <div className="bg-card border rounded-xl overflow-hidden">
-                <div className="p-4 bg-muted/50 border-b font-medium grid grid-cols-[auto_1fr_auto] gap-4">
+                <div className="p-4 bg-muted/50 border-b font-medium flex items-center gap-4">
                     <div className="w-12 text-center">#</div>
-                    <div>Question</div>
+                    <div className="flex-1">Question</div>
                     <div className="w-32 text-center">Status</div>
                 </div>
                 <div className="divide-y max-h-[400px] overflow-y-auto">
@@ -73,13 +72,13 @@ export function ExamReview({
                         return (
                             <div
                                 key={q.id}
-                                className="p-4 grid grid-cols-[auto_1fr_auto] gap-4 items-center hover:bg-muted/50 cursor-pointer transition-colors"
+                                className="p-4 flex items-center gap-4 hover:bg-muted/50 cursor-pointer transition-colors"
                                 onClick={() => onNavigateToQuestion(index)}
                             >
                                 <div className="w-12 text-center font-medium text-muted-foreground">
                                     {index + 1}
                                 </div>
-                                <div className="line-clamp-1 font-medium">
+                                <div className="flex-1 line-clamp-1 font-medium">
                                     {q.text}
                                 </div>
                                 <div className="w-32 flex justify-center gap-2">

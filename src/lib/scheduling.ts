@@ -204,3 +204,79 @@ export const cancelBooking = async (
       return { success: false, error: error.message };
     }
   };
+
+/**
+ * Retrieves all available exam schedules for a given exam.
+ */
+export const getAvailableSchedules = async (firestore: Firestore, examId: string): Promise<ExamSchedule[]> => {
+    const schedulesRef = collection(firestore, 'examSchedules');
+    const q = query(schedulesRef, where('examId', '==', examId), where('status', '==', 'available'));
+
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => doc.data() as ExamSchedule);
+};
+
+/**
+ * Books an exam slot for a user.
+ */
+export const bookExamSlot = async (
+    firestore: Firestore,
+    userId: string,
+    scheduleId: string
+): Promise<{ success: boolean; error?: string }> => {
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const scheduleRef = doc(firestore, 'examSchedules', scheduleId);
+            const scheduleDoc = await transaction.get(scheduleRef);
+
+            if (!scheduleDoc.exists()) {
+                throw new Error('Schedule not found.');
+            }
+
+            const schedule = scheduleDoc.data() as ExamSchedule;
+
+            if (schedule.status !== 'available' || schedule.bookedCount >= schedule.capacity) {
+                throw new Error('This slot is no longer available.');
+            }
+
+            // Check if user has already booked this exam
+            const userBookingsRef = collection(firestore, 'userBookings');
+            const q = query(userBookingsRef, where('userId', '==', userId), where('examId', '==', schedule.examId));
+            const existingBooking = await getDocs(q);
+
+            if (!existingBooking.isEmpty) {
+                throw new Error('You have already booked this exam.');
+            }
+
+
+            const newBookedCount = schedule.bookedCount + 1;
+            const newStatus = newBookedCount >= schedule.capacity ? 'full' : 'available';
+
+            transaction.update(scheduleRef, {
+                bookedCount: newBookedCount,
+                status: newStatus,
+                updatedAt: Timestamp.now(),
+            });
+
+            const bookingId = `${userId}_${scheduleId}`;
+            const bookingRef = doc(firestore, 'userBookings', bookingId);
+
+            const newBooking: UserBooking = {
+                id: bookingId,
+                userId,
+                scheduleId,
+                examId: schedule.examId,
+                courseId: schedule.courseId,
+                bookingDate: Timestamp.now(),
+                status: 'confirmed',
+            };
+
+            transaction.set(bookingRef, newBooking);
+        });
+
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error booking exam slot: ", error);
+        return { success: false, error: error.message };
+    }
+};

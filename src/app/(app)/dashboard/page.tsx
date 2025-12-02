@@ -6,8 +6,6 @@ import {
   BookOpen,
   CircleDollarSign,
   Users,
-  PlayCircle,
-  Trophy
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -21,23 +19,12 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { OverviewChart } from '@/components/dashboard/overview-chart';
-import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, collectionGroup, where, orderBy, limit } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
-
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, query, orderBy, limit } from 'firebase/firestore';
 
 export default function DashboardPage() {
   const firestore = useFirestore();
-  const { user } = useUser();
 
   const usersCollectionQuery = useMemoFirebase(
     () => (firestore ? query(collection(firestore, 'users')) : null),
@@ -58,7 +45,7 @@ export default function DashboardPage() {
   );
 
   const examsCollectionQuery = useMemoFirebase(
-    () => (firestore ? query(collectionGroup(firestore, 'exams')) : null),
+    () => (firestore ? query(collection(firestore, 'exams')) : null),
     [firestore]
   );
 
@@ -67,7 +54,7 @@ export default function DashboardPage() {
   );
 
   const tokenTransactionsQuery = useMemoFirebase(
-    () => (firestore ? query(collectionGroup(firestore, 'tokenTransactions')) : null),
+    () => (firestore ? query(collection(firestore, 'tokenTransactions')) : null),
     [firestore]
   );
 
@@ -78,20 +65,17 @@ export default function DashboardPage() {
   const totalTokens = tokenTransactions?.reduce((sum, transaction) => sum + (transaction.amount || 0), 0) || 0;
   const totalValueTHB = totalTokens * 0.01;
 
-
-
   const recentEnrollmentsQuery = useMemoFirebase(
     () => (firestore ? query(collection(firestore, 'enrollments'), orderBy('enrolledAt', 'desc'), limit(5)) : null),
     [firestore]
   );
   const { data: recentEnrollments, isLoading: isLoadingRecentEnrollments } = useCollection(recentEnrollmentsQuery);
 
-
   return (
     <div className="flex min-h-screen w-full flex-col">
       <main className="flex flex-1 flex-col gap-4 md:gap-8">
-        <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
-          <Card>
+        <div className="flex flex-wrap gap-4">
+          <Card className="flex-1 basis-48">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Tokens Transacted</CardTitle>
               <CircleDollarSign className="h-4 w-4 text-muted-foreground" />
@@ -112,7 +96,7 @@ export default function DashboardPage() {
               )}
             </CardContent>
           </Card>
-          <Card>
+          <Card className="flex-1 basis-48">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Students</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
@@ -135,7 +119,7 @@ export default function DashboardPage() {
               )}
             </CardContent>
           </Card>
-          <Card>
+          <Card className="flex-1 basis-48">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Courses</CardTitle>
               <BookOpen className="h-4 w-4 text-muted-foreground" />
@@ -154,7 +138,7 @@ export default function DashboardPage() {
               )}
             </CardContent>
           </Card>
-          <Card>
+          <Card className="flex-1 basis-48">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Active Exams</CardTitle>
               <Activity className="h-4 w-4 text-muted-foreground" />
@@ -176,8 +160,8 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
-        <div className="grid gap-4 md:gap-8 lg:grid-cols-2 xl:grid-cols-3">
-          <Card className="xl:col-span-2">
+        <div className="flex flex-wrap gap-4">
+          <Card className="flex-grow-[2] basis-96">
             <CardHeader className="flex flex-row items-center">
               <div className="grid gap-2">
                 <CardTitle>Course Overview</CardTitle>
@@ -243,7 +227,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="flex-grow-[1] basis-80">
             <CardHeader>
               <CardTitle>Recent Enrollments</CardTitle>
               <CardDescription>
