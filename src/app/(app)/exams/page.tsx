@@ -496,7 +496,6 @@ export default function ExamsPage() {
                     </>
                 ) : (
                     <>
-                       {exam.price > 0 && (
                         <Button
                             className="flex-1 min-w-[120px]"
                             onClick={async () => {
@@ -537,7 +536,6 @@ export default function ExamsPage() {
                             <ShoppingCart className="h-4 w-4 mr-1" />
                             Add to Cart
                         </Button>
-                       )}
                         <Button variant="outline" asChild>
                             <Link href={`/community?courseId=${exam.courseId}`}>
                                 <Users className="h-4 w-4 mr-1" />
