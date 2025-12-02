@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useFirestore, useUser } from '@/firebase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,8 +10,13 @@ import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { createExamSchedule } from '@/lib/scheduling';
-import { Calendar as CalendarIcon, Clock, Users, Plus, CalendarClock } from 'lucide-react';
+import {
+    createExamSchedule,
+    updateExamSchedule,
+    deleteExamSchedule,
+    bulkCreateExamSchedules
+} from '@/lib/scheduling';
+import { Calendar as CalendarIcon, Clock, Users, Plus, CalendarClock, MoreVertical, Edit, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ExamSchedule } from '@/types/scheduling';
 import {
@@ -22,6 +27,31 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+    DialogClose,
+} from '@/components/ui/dialog';
+
 
 interface ScheduleManagerProps {
     exams: any[];
@@ -37,6 +67,8 @@ const TIME_SLOTS = [
     { value: '17:00', label: 'Evening (5:00 PM)' },
 ] as const;
 
+type TimeSlot = typeof TIME_SLOTS[number]['value'];
+
 export function ScheduleManager({
     exams,
     schedules,
@@ -48,23 +80,34 @@ export function ScheduleManager({
     const firestore = useFirestore();
     const { toast } = useToast();
 
-    const [selectedExam, setSelectedExam] = useState<string>('');
-    const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-    const [selectedTimeSlot, setSelectedTimeSlot] = useState<'09:00' | '13:00' | '17:00'>('09:00');
-    const [capacity, setCapacity] = useState<number>(30);
     const [isCreating, setIsCreating] = useState(false);
 
+    // State for create form
+    const [createExam, setCreateExam] = useState<string>('');
+    const [createDate, setCreateDate] = useState<Date | undefined>(new Date());
+    const [createTimeSlot, setCreateTimeSlot] = useState<TimeSlot>('09:00');
+    const [createCapacity, setCreateCapacity] = useState<number>(30);
+
+    // State for edit dialog
+    const [editSchedule, setEditSchedule] = useState<ExamSchedule | null>(null);
+    const [editDate, setEditDate] = useState<Date | undefined>();
+    const [editTimeSlot, setEditTimeSlot] = useState<TimeSlot>('09:00');
+    const [editCapacity, setEditCapacity] = useState<number>(30);
+
+    // State for delete dialog
+    const [deleteSchedule, setDeleteSchedule] = useState<ExamSchedule | null>(null);
+
+    const sortedSchedules = useMemo(() => {
+        return [...schedules].sort((a, b) => a.date.toMillis() - b.date.toMillis());
+    }, [schedules]);
+
     const handleCreateSchedule = async () => {
-        if (!firestore || !user || !selectedExam || !selectedDate) {
-            toast({
-                variant: 'destructive',
-                title: 'Error',
-                description: 'Please fill in all required fields.',
-            });
+        if (!firestore || !user || !createExam || !createDate) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please fill in all required fields.' });
             return;
         }
 
-        const exam = exams.find(e => e.id === selectedExam);
+        const exam = exams.find(e => e.id === createExam);
         if (!exam) return;
 
         setIsCreating(true);
@@ -74,90 +117,79 @@ export function ScheduleManager({
                 exam.id,
                 exam.name,
                 exam.courseId,
-                selectedDate,
-                selectedTimeSlot,
-                capacity,
+                createDate,
+                createTimeSlot,
+                createCapacity,
                 user.uid
             );
-
-            toast({
-                title: 'Schedule Created',
-                description: `Successfully created schedule for ${exam.name}`,
-            });
-
-            // Reset form
-            setSelectedExam('');
-            setSelectedDate(new Date());
-            setSelectedTimeSlot('09:00');
-            setCapacity(30);
-
-            // Refresh page to show new schedule
+            toast({ title: 'Schedule Created', description: `Successfully created schedule for ${exam.name}` });
             window.location.reload();
         } catch (error: any) {
-            toast({
-                variant: 'destructive',
-                title: 'Error',
-                description: error.message || 'Failed to create schedule.',
-            });
+            toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to create schedule.' });
         } finally {
             setIsCreating(false);
         }
     };
 
     const handleBulkCreate = async () => {
-        if (!firestore || !user || !selectedExam) {
-            toast({
-                variant: 'destructive',
-                title: 'Error',
-                description: 'Please select an exam first.',
-            });
+        if (!firestore || !user || !createExam) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please select an exam first.' });
             return;
         }
 
-        const exam = exams.find(e => e.id === selectedExam);
+        const exam = exams.find(e => e.id === createExam);
         if (!exam) return;
 
         setIsCreating(true);
         try {
-            const promises = [];
-            const startDate = new Date();
-
-            // Create schedules for next 30 days
-            for (let i = 0; i < 30; i++) {
-                const date = new Date(startDate);
-                date.setDate(date.getDate() + i);
-
-                // Create all 3 time slots for each day
-                for (const slot of TIME_SLOTS) {
-                    promises.push(
-                        createExamSchedule(
-                            firestore,
-                            exam.id,
-                            exam.name,
-                            exam.courseId,
-                            date,
-                            slot.value as '09:00' | '13:00' | '17:00',
-                            capacity,
-                            user.uid
-                        )
-                    );
-                }
-            }
-
-            await Promise.all(promises);
-
-            toast({
-                title: 'Bulk Creation Complete',
-                description: `Created ${promises.length} schedules for the next 30 days.`,
-            });
-
+            await bulkCreateExamSchedules(firestore, exam, createCapacity, user.uid);
+            toast({ title: 'Bulk Creation Complete', description: `Created schedules for the next 30 days.` });
             window.location.reload();
         } catch (error: any) {
-            toast({
-                variant: 'destructive',
-                title: 'Error',
-                description: error.message || 'Failed to create schedules.',
+            toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to create schedules.' });
+        } finally {
+            setIsCreating(false);
+        }
+    };
+
+    const openEditDialog = (schedule: ExamSchedule) => {
+        setEditSchedule(schedule);
+        setEditDate(schedule.date.toDate());
+        setEditTimeSlot(schedule.timeSlot as TimeSlot);
+        setEditCapacity(schedule.capacity);
+    };
+
+    const handleUpdateSchedule = async () => {
+        if (!firestore || !editSchedule) return;
+
+        setIsCreating(true);
+        try {
+            await updateExamSchedule(firestore, editSchedule.id, {
+                date: editDate,
+                timeSlot: editTimeSlot,
+                capacity: editCapacity,
             });
+            toast({ title: 'Schedule Updated', description: 'The schedule has been successfully updated.' });
+            setEditSchedule(null);
+            window.location.reload();
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Update Failed', description: error.message });
+        } finally {
+            setIsCreating(false);
+        }
+    };
+
+    const handleDeleteSchedule = async () => {
+        if (!firestore || !deleteSchedule) return;
+
+        setIsCreating(true);
+        try {
+            await deleteExamSchedule(firestore, deleteSchedule.id);
+            toast({ title: 'Schedule Deleted', description: 'The schedule has been successfully deleted.' });
+            setDeleteSchedule(null);
+            window.location.reload();
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Deletion Failed', description: error.message });
         } finally {
             setIsCreating(false);
         }
@@ -168,62 +200,43 @@ export function ScheduleManager({
             <Card>
                 <CardHeader>
                     <CardTitle>Create Exam Schedule</CardTitle>
-                    <CardDescription>
-                        Set up time slots for students to book exams
-                    </CardDescription>
+                    <CardDescription>Set up time slots for students to book exams</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    {/* Exam Selection */}
                     <div className="space-y-2">
                         <Label htmlFor="exam">Exam</Label>
-                        <Select value={selectedExam} onValueChange={setSelectedExam}>
-                            <SelectTrigger id="exam">
-                                <SelectValue placeholder="Select an exam" />
-                            </SelectTrigger>
+                        <Select value={createExam} onValueChange={setCreateExam}>
+                            <SelectTrigger id="exam"><SelectValue placeholder="Select an exam" /></SelectTrigger>
                             <SelectContent>
                                 {exams.map((exam) => (
-                                    <SelectItem key={exam.id} value={exam.id}>
-                                        {exam.name}
-                                    </SelectItem>
+                                    <SelectItem key={exam.id} value={exam.id}>{exam.name}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                     </div>
-
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Date Selection */}
                         <div className="space-y-2">
                             <Label>Date</Label>
                             <Calendar
                                 mode="single"
-                                selected={selectedDate}
-                                onSelect={setSelectedDate}
-                                disabled={(date) => date < new Date()}
+                                selected={createDate}
+                                onSelect={setCreateDate}
+                                disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                                 className="rounded-md border"
                             />
                         </div>
-
-                        {/* Time Slot and Capacity */}
                         <div className="space-y-4">
                             <div className="space-y-2">
                                 <Label htmlFor="timeSlot">Time Slot</Label>
-                                <Select
-                                    value={selectedTimeSlot}
-                                    onValueChange={(v) => setSelectedTimeSlot(v as any)}
-                                >
-                                    <SelectTrigger id="timeSlot">
-                                        <SelectValue />
-                                    </SelectTrigger>
+                                <Select value={createTimeSlot} onValueChange={(v) => setCreateTimeSlot(v as TimeSlot)}>
+                                    <SelectTrigger id="timeSlot"><SelectValue /></SelectTrigger>
                                     <SelectContent>
                                         {TIME_SLOTS.map((slot) => (
-                                            <SelectItem key={slot.value} value={slot.value}>
-                                                {slot.label}
-                                            </SelectItem>
+                                            <SelectItem key={slot.value} value={slot.value}>{slot.label}</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
                             </div>
-
                             <div className="space-y-2">
                                 <Label htmlFor="capacity">Capacity</Label>
                                 <Input
@@ -231,26 +244,15 @@ export function ScheduleManager({
                                     type="number"
                                     min="1"
                                     max="100"
-                                    value={capacity}
-                                    onChange={(e) => setCapacity(parseInt(e.target.value) || 30)}
+                                    value={createCapacity}
+                                    onChange={(e) => setCreateCapacity(parseInt(e.target.value) || 30)}
                                 />
                             </div>
-
                             <div className="pt-4 space-y-2">
-                                <Button
-                                    onClick={handleCreateSchedule}
-                                    disabled={isCreating || !selectedExam || !selectedDate}
-                                    className="w-full"
-                                >
+                                <Button onClick={handleCreateSchedule} disabled={isCreating || !createExam || !createDate} className="w-full">
                                     {isCreating ? 'Creating...' : 'Create Schedule'}
                                 </Button>
-
-                                <Button
-                                    onClick={handleBulkCreate}
-                                    disabled={isCreating || !selectedExam}
-                                    variant="outline"
-                                    className="w-full"
-                                >
+                                <Button onClick={handleBulkCreate} disabled={isCreating || !createExam} variant="outline" className="w-full">
                                     <Plus className="mr-2 h-4 w-4" />
                                     Bulk Create (30 Days)
                                 </Button>
@@ -262,77 +264,53 @@ export function ScheduleManager({
         );
     }
 
-    // Schedule List View
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Existing Schedules</CardTitle>
-                <CardDescription>
-                    View and manage all exam schedules
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                {isLoadingSchedules ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                        Loading schedules...
-                    </div>
-                ) : schedules.length === 0 ? (
-                    <div className="text-center py-16 space-y-6">
-                        <div className="flex justify-center">
-                            <div className="p-4 bg-primary/10 rounded-full">
-                                <CalendarClock className="h-12 w-12 text-primary" />
+        <>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Existing Schedules</CardTitle>
+                    <CardDescription>View and manage all exam schedules</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isLoadingSchedules ? (
+                        <div className="text-center py-8 text-muted-foreground">Loading schedules...</div>
+                    ) : sortedSchedules.length === 0 ? (
+                        <div className="text-center py-16 space-y-6">
+                            <div className="flex justify-center">
+                                <div className="p-4 bg-primary/10 rounded-full"><CalendarClock className="h-12 w-12 text-primary" /></div>
                             </div>
-                        </div>
-                        <div className="space-y-2">
-                            <h3 className="text-xl font-semibold">No Exam Schedules Yet</h3>
-                            <p className="text-muted-foreground max-w-md mx-auto">
-                                Create exam schedules to allow students to book time slots for their exams.
-                                You can create individual schedules or bulk create for multiple days.
-                            </p>
-                        </div>
-                        <div className="flex gap-3 justify-center">
-                            <Button
-                                size="lg"
-                                onClick={() => window.location.reload()}
-                                className="gap-2"
-                            >
+                            <div className="space-y-2">
+                                <h3 className="text-xl font-semibold">No Exam Schedules Yet</h3>
+                                <p className="text-muted-foreground max-w-md mx-auto">
+                                    Create exam schedules to allow students to book time slots for their exams.
+                                </p>
+                            </div>
+                            <Button size="lg" onClick={() => window.location.href = '/admin/schedules/create'} className="gap-2">
                                 <Plus className="h-5 w-5" />
                                 Create Your First Schedule
                             </Button>
                         </div>
-                        <div className="pt-4 border-t max-w-md mx-auto">
-                            <p className="text-sm text-muted-foreground">
-                                💡 <strong>Tip:</strong> Use the "Create Schedule" button at the top right to get started,
-                                or use "Bulk Create" to set up schedules for the next 30 days automatically.
-                            </p>
-                        </div>
-                    </div>
-                ) : (
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Exam</TableHead>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Time</TableHead>
-                                <TableHead>Capacity</TableHead>
-                                <TableHead>Status</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {schedules
-                                .sort((a, b) => a.date.toMillis() - b.date.toMillis())
-                                .map((schedule) => (
+                    ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Exam</TableHead>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Time</TableHead>
+                                    <TableHead>Bookings</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead><span className="sr-only">Actions</span></TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {sortedSchedules.map((schedule) => (
                                     <TableRow key={schedule.id}>
-                                        <TableCell className="font-medium">
-                                            {schedule.examName}
-                                        </TableCell>
-                                        <TableCell>
-                                            {format(schedule.date.toDate(), 'MMM d, yyyy')}
-                                        </TableCell>
+                                        <TableCell className="font-medium">{schedule.examName}</TableCell>
+                                        <TableCell>{format(schedule.date.toDate(), 'MMM d, yyyy')}</TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-2">
                                                 <Clock className="h-4 w-4 text-muted-foreground" />
-                                                {TIME_SLOTS.find(t => t.value === schedule.timeSlot)?.label}
+                                                {TIME_SLOTS.find(t => t.value === schedule.timeSlot)?.label || schedule.timeSlot}
                                             </div>
                                         </TableCell>
                                         <TableCell>
@@ -342,24 +320,113 @@ export function ScheduleManager({
                                             </div>
                                         </TableCell>
                                         <TableCell>
-                                            <Badge
-                                                variant={
-                                                    schedule.status === 'available'
-                                                        ? 'default'
-                                                        : schedule.status === 'full'
-                                                            ? 'secondary'
-                                                            : 'destructive'
-                                                }
-                                            >
+                                            <Badge variant={schedule.status === 'available' ? 'default' : schedule.status === 'full' ? 'secondary' : 'destructive'}>
                                                 {schedule.status}
                                             </Badge>
                                         </TableCell>
+                                        <TableCell className="text-right">
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" className="h-8 w-8 p-0">
+                                                        <span className="sr-only">Open menu</span>
+                                                        <MoreVertical className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onClick={() => openEditDialog(schedule)}>
+                                                        <Edit className="mr-2 h-4 w-4" />
+                                                        <span>Edit</span>
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        onClick={() => setDeleteSchedule(schedule)}
+                                                        className="text-destructive"
+                                                    >
+                                                        <Trash2 className="mr-2 h-4 w-4" />
+                                                        <span>Delete</span>
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </TableCell>
                                     </TableRow>
                                 ))}
-                        </TableBody>
-                    </Table>
-                )}
-            </CardContent>
-        </Card>
+                            </TableBody>
+                        </Table>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* Edit Dialog */}
+            <Dialog open={!!editSchedule} onOpenChange={(open) => !open && setEditSchedule(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Edit Schedule</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label>Date</Label>
+                            <Calendar
+                                mode="single"
+                                selected={editDate}
+                                onSelect={setEditDate}
+                                disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                                className="rounded-md border"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="edit-timeSlot">Time Slot</Label>
+                            <Select value={editTimeSlot} onValueChange={(v) => setEditTimeSlot(v as TimeSlot)}>
+                                <SelectTrigger id="edit-timeSlot"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    {TIME_SLOTS.map((slot) => (
+                                        <SelectItem key={slot.value} value={slot.value}>{slot.label}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="edit-capacity">Capacity</Label>
+                            <Input
+                                id="edit-capacity"
+                                type="number"
+                                min={editSchedule?.bookedCount ?? 1}
+                                max="100"
+                                value={editCapacity}
+                                onChange={(e) => setEditCapacity(parseInt(e.target.value) || 1)}
+                            />
+                            <p className="text-sm text-muted-foreground">
+                                Cannot be lower than the number of currently booked students ({editSchedule?.bookedCount ?? 0}).
+                            </p>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button variant="outline">Cancel</Button>
+                        </DialogClose>
+                        <Button onClick={handleUpdateSchedule} disabled={isCreating}>
+                            {isCreating ? 'Saving...' : 'Save Changes'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog open={!!deleteSchedule} onOpenChange={(open) => !open && setDeleteSchedule(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete the schedule
+                            and any associated bookings. Booked students will be notified.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteSchedule} disabled={isCreating} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            {isCreating ? 'Deleting...' : 'Delete'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </>
     );
 }

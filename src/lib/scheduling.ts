@@ -1,24 +1,19 @@
-import {
-    Firestore,
-    collection,
-    doc,
-    addDoc,
-    updateDoc,
-    getDoc,
-    getDocs,
-    query,
-    where,
-    serverTimestamp,
-    Timestamp,
-    increment,
-    writeBatch,
-} from 'firebase/firestore';
-import { ExamSchedule, Booking } from '@/types/scheduling';
+'use client';
+
+import { doc, setDoc, updateDoc, deleteDoc, Timestamp, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
+import { Firestore } from 'firebase/firestore';
+import { ExamSchedule, ExamScheduleUpdate } from '@/types/scheduling';
+
+const TIME_SLOTS = [
+    { value: '09:00', label: 'Morning (9:00 AM)' },
+    { value: '13:00', label: 'Afternoon (1:00 PM)' },
+    { value: '17:00', label: 'Evening (5:00 PM)' },
+] as const;
 
 /**
- * Create exam schedule (Admin/Instructor only)
+ * Creates a new exam schedule in Firestore.
  */
-export async function createExamSchedule(
+export const createExamSchedule = async (
     firestore: Firestore,
     examId: string,
     examName: string,
@@ -27,8 +22,12 @@ export async function createExamSchedule(
     timeSlot: '09:00' | '13:00' | '17:00',
     capacity: number,
     createdBy: string
-): Promise<string> {
-    const scheduleRef = await addDoc(collection(firestore, 'examSchedules'), {
+): Promise<string> => {
+    const scheduleId = `${examId}_${date.toISOString().split('T')[0]}_${timeSlot}`;
+    const scheduleRef = doc(firestore, 'examSchedules', scheduleId);
+
+    const newSchedule: ExamSchedule = {
+        id: scheduleId,
         examId,
         examName,
         courseId,
@@ -37,174 +36,100 @@ export async function createExamSchedule(
         capacity,
         bookedCount: 0,
         status: 'available',
-        createdAt: serverTimestamp(),
         createdBy,
-    });
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+    };
 
-    return scheduleRef.id;
-}
-
-/**
- * Get available schedules for an exam
- */
-export async function getAvailableSchedules(
-    firestore: Firestore,
-    examId: string
-): Promise<ExamSchedule[]> {
-    const q = query(
-        collection(firestore, 'examSchedules'),
-        where('examId', '==', examId),
-        where('status', '==', 'available')
-    );
-
-    const snapshot = await getDocs(q);
-    const now = Date.now();
-
-    return snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as ExamSchedule))
-        .filter(schedule => schedule.date.toMillis() > now) // Only future dates
-        .sort((a, b) => a.date.toMillis() - b.date.toMillis());
-}
+    await setDoc(scheduleRef, newSchedule);
+    return scheduleId;
+};
 
 /**
- * Book exam slot
+ * Updates an existing exam schedule in Firestore.
  */
-export async function bookExamSlot(
+export const updateExamSchedule = async (
     firestore: Firestore,
-    userId: string,
-    userName: string,
-    userEmail: string,
+    scheduleId: string,
+    updates: ExamScheduleUpdate
+): Promise<void> => {
+    const scheduleRef = doc(firestore, 'examSchedules', scheduleId);
+
+    const finalUpdates: any = { ...updates, updatedAt: Timestamp.now() };
+
+    if (updates.date) {
+        finalUpdates.date = Timestamp.fromDate(updates.date);
+    }
+
+    // Optional: Add logic to re-validate status based on capacity and bookedCount
+
+    await updateDoc(scheduleRef, finalUpdates);
+};
+
+/**
+ * Deletes an exam schedule from Firestore.
+ */
+export const deleteExamSchedule = async (
+    firestore: Firestore,
     scheduleId: string
-): Promise<{ success: boolean; bookingId?: string; error?: string }> {
-    try {
-        // Get schedule
-        const scheduleRef = doc(firestore, 'examSchedules', scheduleId);
-        const scheduleSnap = await getDoc(scheduleRef);
+): Promise<void> => {
+    const scheduleRef = doc(firestore, 'examSchedules', scheduleId);
 
-        if (!scheduleSnap.exists()) {
-            return { success: false, error: 'Schedule not found' };
-        }
+    // Optional: Add logic here to handle associated bookings, e.g., notify users.
 
-        const schedule = scheduleSnap.data() as ExamSchedule;
+    await deleteDoc(scheduleRef);
+};
 
-        // Check availability
-        if (schedule.status !== 'available') {
-            return { success: false, error: 'This slot is no longer available' };
-        }
-
-        if (schedule.bookedCount >= schedule.capacity) {
-            return { success: false, error: 'This slot is full' };
-        }
-
-        // Check if user already booked this exam
-        const existingBookingQuery = query(
-            collection(firestore, 'bookings'),
-            where('userId', '==', userId),
-            where('examId', '==', schedule.examId),
-            where('status', '==', 'confirmed')
-        );
-        const existingBookings = await getDocs(existingBookingQuery);
-
-        if (!existingBookings.empty) {
-            return { success: false, error: 'You already have a booking for this exam' };
-        }
-
-        // Create booking
-        const batch = writeBatch(firestore);
-
-        const bookingRef = doc(collection(firestore, 'bookings'));
-        batch.set(bookingRef, {
-            userId,
-            userName,
-            userEmail,
-            examId: schedule.examId,
-            examName: schedule.examName,
-            courseId: schedule.courseId,
-            scheduleId,
-            date: schedule.date,
-            timeSlot: schedule.timeSlot,
-            status: 'confirmed',
-            bookedAt: serverTimestamp(),
-            reminderSent: false,
-        });
-
-        // Update schedule booked count
-        batch.update(scheduleRef, {
-            bookedCount: increment(1),
-            status: schedule.bookedCount + 1 >= schedule.capacity ? 'full' : 'available',
-        });
-
-        await batch.commit();
-
-        return { success: true, bookingId: bookingRef.id };
-    } catch (error: any) {
-        console.error('Booking error:', error);
-        return { success: false, error: error.message || 'Failed to book exam slot' };
-    }
-}
 
 /**
- * Cancel booking
+ * Bulk creates exam schedules for a given exam for the next 30 days.
  */
-export async function cancelBooking(
+export const bulkCreateExamSchedules = async (
     firestore: Firestore,
-    bookingId: string,
-    reason?: string
-): Promise<{ success: boolean; error?: string }> {
-    try {
-        const bookingRef = doc(firestore, 'bookings', bookingId);
-        const bookingSnap = await getDoc(bookingRef);
+    exam: { id: string, name: string, courseId: string },
+    capacity: number,
+    createdBy: string
+): Promise<void> => {
+    const batch = writeBatch(firestore);
+    const today = new Date();
 
-        if (!bookingSnap.exists()) {
-            return { success: false, error: 'Booking not found' };
+    for (let i = 0; i < 30; i++) {
+        const date = new Date(today);
+        date.setDate(date.getDate() + i);
+
+        for (const slot of TIME_SLOTS) {
+            const scheduleId = `${exam.id}_${date.toISOString().split('T')[0]}_${slot.value}`;
+            const scheduleRef = doc(firestore, 'examSchedules', scheduleId);
+
+            const newSchedule: ExamSchedule = {
+                id: scheduleId,
+                examId: exam.id,
+                examName: exam.name,
+                courseId: exam.courseId,
+                date: Timestamp.fromDate(date),
+                timeSlot: slot.value,
+                capacity,
+                bookedCount: 0,
+                status: 'available',
+                createdBy,
+                createdAt: Timestamp.now(),
+                updatedAt: Timestamp.now(),
+            };
+
+            batch.set(scheduleRef, newSchedule);
         }
-
-        const booking = bookingSnap.data() as Booking;
-
-        if (booking.status !== 'confirmed') {
-            return { success: false, error: 'This booking cannot be cancelled' };
-        }
-
-        const batch = writeBatch(firestore);
-
-        // Update booking
-        batch.update(bookingRef, {
-            status: 'cancelled',
-            cancelledAt: serverTimestamp(),
-            cancellationReason: reason || 'Cancelled by user',
-        });
-
-        // Update schedule
-        const scheduleRef = doc(firestore, 'examSchedules', booking.scheduleId);
-        batch.update(scheduleRef, {
-            bookedCount: increment(-1),
-            status: 'available',
-        });
-
-        await batch.commit();
-
-        return { success: true };
-    } catch (error: any) {
-        console.error('Cancellation error:', error);
-        return { success: false, error: error.message || 'Failed to cancel booking' };
     }
-}
+
+    await batch.commit();
+};
 
 /**
- * Get user's bookings
+ * Retrieves all exam schedules for a given course.
  */
-export async function getUserBookings(
-    firestore: Firestore,
-    userId: string
-): Promise<Booking[]> {
-    const q = query(
-        collection(firestore, 'bookings'),
-        where('userId', '==', userId)
-    );
+export const getSchedulesByCourse = async (firestore: Firestore, courseId: string): Promise<ExamSchedule[]> => {
+    const schedulesRef = collection(firestore, 'examSchedules');
+    const q = query(schedulesRef, where('courseId', '==', courseId));
 
-    const snapshot = await getDocs(q);
-
-    return snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as Booking))
-        .sort((a, b) => b.bookedAt.toMillis() - a.bookedAt.toMillis());
-}
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => doc.data() as ExamSchedule);
+};
