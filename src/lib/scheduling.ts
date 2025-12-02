@@ -1,8 +1,8 @@
 'use client';
 
-import { doc, setDoc, updateDoc, deleteDoc, Timestamp, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc, Timestamp, collection, query, where, getDocs, writeBatch, runTransaction } from 'firebase/firestore';
 import { Firestore } from 'firebase/firestore';
-import { ExamSchedule, ExamScheduleUpdate } from '@/types/scheduling';
+import { ExamSchedule, ExamScheduleUpdate, UserBooking } from '@/types/scheduling';
 
 const TIME_SLOTS = [
     { value: '09:00', label: 'Morning (9:00 AM)' },
@@ -143,3 +143,64 @@ export const getSchedulesByCourse = async (firestore: Firestore, courseId: strin
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => doc.data() as ExamSchedule);
 };
+
+/**
+ * Retrieves all bookings for a specific user.
+ */
+export const getUserBookings = async (firestore: Firestore, userId: string): Promise<UserBooking[]> => {
+    const bookingsRef = collection(firestore, 'userBookings');
+    const q = query(bookingsRef, where('userId', '==', userId));
+    
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => doc.data() as UserBooking);
+};
+
+/**
+ * Cancels a user's exam booking.
+ */
+export const cancelBooking = async (
+    firestore: Firestore,
+    bookingId: string,
+    reason: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      await runTransaction(firestore, async (transaction) => {
+        const bookingRef = doc(firestore, 'userBookings', bookingId);
+        const bookingDoc = await transaction.get(bookingRef);
+  
+        if (!bookingDoc.exists()) {
+          throw new Error('Booking not found.');
+        }
+  
+        const booking = bookingDoc.data() as UserBooking;
+        const scheduleRef = doc(firestore, 'examSchedules', booking.scheduleId);
+        const scheduleDoc = await transaction.get(scheduleRef);
+  
+        if (!scheduleDoc.exists()) {
+          // If schedule is not found, the booking is orphaned, but we can still cancel it.
+          transaction.update(bookingRef, { status: 'cancelled' });
+          return;
+        }
+  
+        const schedule = scheduleDoc.data() as ExamSchedule;
+  
+        // Update booking status
+        transaction.update(bookingRef, { status: 'cancelled' });
+  
+        // Decrement booked count and update schedule status
+        const newBookedCount = Math.max(0, schedule.bookedCount - 1);
+        const newStatus = newBookedCount < schedule.capacity ? 'available' : 'full';
+  
+        transaction.update(scheduleRef, {
+          bookedCount: newBookedCount,
+          status: newStatus,
+          updatedAt: Timestamp.now(),
+        });
+      });
+  
+      return { success: true };
+    } catch (error: any) {
+      console.error("Error cancelling booking: ", error);
+      return { success: false, error: error.message };
+    }
+  };

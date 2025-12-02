@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useFirestore, useUser, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collectionGroup, query, doc, writeBatch, collection, where } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -53,6 +53,11 @@ export default function ExamsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [examToDelete, setExamToDelete] = useState<{ courseId: string; examId: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Fetch user profile
   const userDocRef = useMemoFirebase(
@@ -233,7 +238,7 @@ export default function ExamsPage() {
             Test your knowledge and earn certificates
           </p>
         </div>
-        {(userProfile?.role === 'Admin' || userProfile?.role === 'Instructor') && (
+        {isClient && (userProfile?.role === 'Admin' || userProfile?.role === 'Instructor') && (
           <div>
             <input
               type="file"
@@ -517,7 +522,7 @@ export default function ExamsPage() {
                   )}
 
                   {/* Admin/Instructor Actions */}
-                  {(userProfile?.role === 'Admin' || userProfile?.role === 'Instructor') && (
+                  {isClient && (userProfile?.role === 'Admin' || userProfile?.role === 'Instructor') && (
                     <div className="flex gap-1 border-l pl-2 ml-auto">
                       <Button
                         variant="ghost"
