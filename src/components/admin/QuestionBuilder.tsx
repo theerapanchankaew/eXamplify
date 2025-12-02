@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useFieldArray, useFormContext, Controller } from 'react-hook-form';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,51 +15,25 @@ import {
 } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { X, Plus, GripVertical } from 'lucide-react';
-import { Question } from '@/lib/admin/exams';
 
 interface QuestionBuilderProps {
-    question: Question;
     index: number;
-    onUpdate: (question: Question) => void;
-    onDelete: () => void;
+    onRemove: () => void;
 }
 
-export function QuestionBuilder({
-    question,
-    index,
-    onUpdate,
-    onDelete,
-}: QuestionBuilderProps) {
-    const [localQuestion, setLocalQuestion] = useState<Question>(question);
+export function QuestionBuilder({ index, onRemove }: QuestionBuilderProps) {
+    const { control, register, watch } = useFormContext();
+    const questionPath = `questions.${index}` as const;
+    const question = watch(questionPath);
+    const questionType = question.type;
 
-    const handleUpdate = (updates: Partial<Question>) => {
-        const updated = { ...localQuestion, ...updates };
-        setLocalQuestion(updated);
-        onUpdate(updated);
-    };
-
-    const handleAddOption = () => {
-        const newOptions = [...(localQuestion.options || []), ''];
-        handleUpdate({ options: newOptions });
-    };
-
-    const handleUpdateOption = (optionIndex: number, value: string) => {
-        const newOptions = [...(localQuestion.options || [])];
-        newOptions[optionIndex] = value;
-        handleUpdate({ options: newOptions });
-    };
-
-    const handleDeleteOption = (optionIndex: number) => {
-        const newOptions = (localQuestion.options || []).filter((_, i) => i !== optionIndex);
-        handleUpdate({ options: newOptions });
-    };
-
-    const handleCorrectAnswerChange = (value: string) => {
-        handleUpdate({ correctAnswer: value });
-    };
+    const { fields: options, append, remove } = useFieldArray({
+        control,
+        name: `${questionPath}.options`,
+    });
 
     return (
-        <Card className="mb-4">
+        <Card className="mb-4 relative">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
                 <div className="flex items-center gap-2">
                     <GripVertical className="h-5 w-5 text-muted-foreground cursor-move" />
@@ -68,7 +42,8 @@ export function QuestionBuilder({
                 <Button
                     variant="ghost"
                     size="icon"
-                    onClick={onDelete}
+                    type="button"
+                    onClick={onRemove}
                     className="text-destructive hover:text-destructive"
                 >
                     <X className="h-4 w-4" />
@@ -77,11 +52,10 @@ export function QuestionBuilder({
             <CardContent className="space-y-4">
                 {/* Question Text */}
                 <div className="space-y-2">
-                    <Label htmlFor={`question-text-${question.id}`}>Question Text</Label>
+                    <Label htmlFor={`${questionPath}.text`}>Question Text</Label>
                     <Textarea
-                        id={`question-text-${question.id}`}
-                        value={localQuestion.text}
-                        onChange={(e) => handleUpdate({ text: e.target.value })}
+                        id={`${questionPath}.text`}
+                        {...register(`${questionPath}.text`)}
                         placeholder="Enter your question here..."
                         rows={3}
                     />
@@ -90,112 +64,116 @@ export function QuestionBuilder({
                 {/* Question Type and Points */}
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                        <Label htmlFor={`question-type-${question.id}`}>Type</Label>
-                        <Select
-                            value={localQuestion.type}
-                            onValueChange={(value: Question['type']) =>
-                                handleUpdate({ type: value })
-                            }
-                        >
-                            <SelectTrigger id={`question-type-${question.id}`}>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="multiple-choice">Multiple Choice</SelectItem>
-                                <SelectItem value="true-false">True/False</SelectItem>
-                                <SelectItem value="essay">Essay</SelectItem>
-                            </SelectContent>
-                        </Select>
+                        <Label>Type</Label>
+                        <Controller
+                            name={`${questionPath}.type`}
+                            control={control}
+                            render={({ field }) => (
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="multiple-choice">Multiple Choice</SelectItem>
+                                        <SelectItem value="true-false">True/False</SelectItem>
+                                        <SelectItem value="essay">Essay</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            )}
+                        />
                     </div>
-
                     <div className="space-y-2">
-                        <Label htmlFor={`question-points-${question.id}`}>Points</Label>
+                        <Label htmlFor={`${questionPath}.points`}>Points</Label>
                         <Input
-                            id={`question-points-${question.id}`}
+                            id={`${questionPath}.points`}
                             type="number"
                             min="1"
-                            value={localQuestion.points}
-                            onChange={(e) => handleUpdate({ points: parseInt(e.target.value) || 1 })}
+                            {...register(`${questionPath}.points`, { valueAsNumber: true })}
                         />
                     </div>
                 </div>
 
-                {/* Options (for multiple-choice and true-false) */}
-                {(localQuestion.type === 'multiple-choice' || localQuestion.type === 'true-false') && (
-                    <div className="space-y-2">
-                        <Label>Options</Label>
-                        <RadioGroup
-                            value={localQuestion.correctAnswer}
-                            onValueChange={handleCorrectAnswerChange}
-                        >
-                            {localQuestion.type === 'true-false' ? (
-                                <>
-                                    <div className="flex items-center space-x-2 p-3 border rounded-md">
-                                        <RadioGroupItem value="True" id={`${question.id}-true`} />
-                                        <Label htmlFor={`${question.id}-true`} className="flex-1 cursor-pointer">
-                                            True
-                                        </Label>
-                                    </div>
-                                    <div className="flex items-center space-x-2 p-3 border rounded-md">
-                                        <RadioGroupItem value="False" id={`${question.id}-false`} />
-                                        <Label htmlFor={`${question.id}-false`} className="flex-1 cursor-pointer">
-                                            False
-                                        </Label>
-                                    </div>
-                                </>
-                            ) : (
-                                <>
-                                    {(localQuestion.options || []).map((option, optionIndex) => (
-                                        <div
-                                            key={optionIndex}
-                                            className="flex items-center space-x-2 p-2 border rounded-md"
-                                        >
-                                            <RadioGroupItem
-                                                value={option}
-                                                id={`${question.id}-option-${optionIndex}`}
-                                            />
+                {/* --- Options & Correct Answer Logic --- */}
+
+                {/* Multiple Choice */}
+                {questionType === 'multiple-choice' && (
+                     <Controller
+                        name={`${questionPath}.correctAnswer`}
+                        control={control}
+                        render={({ field: correctAnswerField }) => {
+                            const selectedIndex = (question.options || []).indexOf(correctAnswerField.value);
+                            const handleRadioChange = (selectedIndexStr: string) => {
+                                const index = parseInt(selectedIndexStr, 10);
+                                const options = watch(`${questionPath}.options`);
+                                if (options && options[index] !== undefined) {
+                                    correctAnswerField.onChange(options[index]);
+                                }
+                            };
+
+                            return (
+                                <div className="space-y-2">
+                                  <Label>Options & Correct Answer</Label>
+                                  <RadioGroup
+                                    onValueChange={handleRadioChange}
+                                    value={selectedIndex > -1 ? selectedIndex.toString() : undefined}
+                                    className="space-y-2"
+                                  >
+                                    {options.map((option, optionIndex) => (
+                                        <div key={option.id} className="flex items-center space-x-2 p-2 border rounded-md">
+                                            <RadioGroupItem value={optionIndex.toString()} id={`${questionPath}-opt-${optionIndex}`} />
                                             <Input
-                                                value={option}
-                                                onChange={(e) => handleUpdateOption(optionIndex, e.target.value)}
+                                                {...register(`${questionPath}.options.${optionIndex}` as const)}
                                                 placeholder={`Option ${String.fromCharCode(65 + optionIndex)}`}
                                                 className="flex-1"
                                             />
-                                            {(localQuestion.options?.length || 0) > 2 && (
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => handleDeleteOption(optionIndex)}
-                                                    className="text-destructive"
-                                                >
+                                            {options.length > 2 && (
+                                                <Button type="button" variant="ghost" size="icon" onClick={() => remove(optionIndex)} className="text-destructive">
                                                     <X className="h-4 w-4" />
                                                 </Button>
                                             )}
                                         </div>
                                     ))}
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={handleAddOption}
-                                        className="w-full"
-                                    >
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        Add Option
-                                    </Button>
-                                </>
-                            )}
-                        </RadioGroup>
-                    </div>
+                                  </RadioGroup>
+                                  <Button type="button" variant="outline" size="sm" onClick={() => append('')} className="w-full mt-2">
+                                      <Plus className="h-4 w-4 mr-2" />
+                                      Add Option
+                                  </Button>
+                                </div>
+                            );
+                        }}
+                    />
                 )}
 
-                {/* Correct Answer (for essay) */}
-                {localQuestion.type === 'essay' && (
+                {/* True/False */}
+                {questionType === 'true-false' && (
+                    <Controller
+                        name={`${questionPath}.correctAnswer`}
+                        control={control}
+                        render={({ field }) => (
+                            <div className="space-y-2">
+                                <Label>Correct Answer</Label>
+                                <RadioGroup onValueChange={field.onChange} value={field.value} className="space-y-2">
+                                    <div className="flex items-center space-x-2 p-3 border rounded-md">
+                                        <RadioGroupItem value="True" id={`${questionPath}-true`} />
+                                        <Label htmlFor={`${questionPath}-true`} className="flex-1 cursor-pointer">True</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2 p-3 border rounded-md">
+                                        <RadioGroupItem value="False" id={`${questionPath}-false`} />
+                                        <Label htmlFor={`${questionPath}-false`} className="flex-1 cursor-pointer">False</Label>
+                                    </div>
+                                </RadioGroup>
+                            </div>
+                        )}
+                    />
+                )}
+
+                {/* Essay Answer */}
+                {questionType === 'essay' && (
                     <div className="space-y-2">
-                        <Label htmlFor={`question-answer-${question.id}`}>Model Answer</Label>
+                        <Label htmlFor={`${questionPath}.correctAnswer`}>Model Answer</Label>
                         <Textarea
-                            id={`question-answer-${question.id}`}
-                            value={localQuestion.correctAnswer}
-                            onChange={(e) => handleUpdate({ correctAnswer: e.target.value })}
+                            id={`${questionPath}.correctAnswer`}
+                            {...register(`${questionPath}.correctAnswer`)}
                             placeholder="Enter a model answer or grading criteria..."
                             rows={3}
                         />
@@ -204,13 +182,10 @@ export function QuestionBuilder({
 
                 {/* Explanation */}
                 <div className="space-y-2">
-                    <Label htmlFor={`question-explanation-${question.id}`}>
-                        Explanation (Optional)
-                    </Label>
+                    <Label htmlFor={`${questionPath}.explanation`}>Explanation (Optional)</Label>
                     <Textarea
-                        id={`question-explanation-${question.id}`}
-                        value={localQuestion.explanation || ''}
-                        onChange={(e) => handleUpdate({ explanation: e.target.value })}
+                        id={`${questionPath}.explanation`}
+                        {...register(`${questionPath}.explanation`)}
                         placeholder="Explain why this is the correct answer..."
                         rows={2}
                     />

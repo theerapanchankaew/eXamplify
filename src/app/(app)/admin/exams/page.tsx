@@ -221,6 +221,7 @@ export default function ManageExamsPage() {
                                         <TableHead>Course</TableHead>
                                         <TableHead className="text-center">Questions</TableHead>
                                         <TableHead className="text-center">Duration</TableHead>
+                                        <TableHead className="text-center">Price</TableHead>
                                         <TableHead className="text-center">Status</TableHead>
                                         <TableHead className="text-right">Actions</TableHead>
                                     </TableRow>
@@ -232,6 +233,7 @@ export default function ManageExamsPage() {
                                             <TableCell>{exam.courseId}</TableCell>
                                             <TableCell className="text-center">{exam.totalQuestions}</TableCell>
                                             <TableCell className="text-center">{exam.duration} min</TableCell>
+                                            <TableCell className="text-center">{exam.price} tokens</TableCell>
                                             <TableCell className="text-center">
                                                 <Badge variant={exam.status === 'published' ? 'default' : 'secondary'}>
                                                     {exam.status || 'draft'}

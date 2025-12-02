@@ -199,6 +199,8 @@ export async function getExamWithQuestions(
     if (!examSnap.exists()) {
         return null;
     }
+    
+    const examData = examSnap.data();
 
     // Get questions
     const questionsSnapshot = await getDocs(
@@ -212,7 +214,8 @@ export async function getExamWithQuestions(
 
     return {
         id: examSnap.id,
-        ...examSnap.data(),
+        ...examData,
+        price: examData.price || 0, // Ensure price is included
         questions,
     } as ExamWithQuestions;
 }
@@ -262,16 +265,18 @@ export async function listExams(
                 }
             }
 
-            // Get question count
-            const questionsSnapshot = await getDocs(
-                collection(firestore, 'courses', courseDoc.id, 'exams', examDoc.id, 'questions')
-            );
-
             exams.push({
                 id: examDoc.id,
-                ...examData,
-                questions: [],
-                totalQuestions: questionsSnapshot.size,
+                name: examData.name || '',
+                description: examData.description || '',
+                courseId: examData.courseId,
+                duration: examData.duration || 0,
+                passingScore: examData.passingScore || 0,
+                price: examData.price || 0, // Ensure price is included with a fallback
+                totalQuestions: examData.totalQuestions || 0,
+                status: examData.status || 'draft',
+                category: examData.category || '',
+                questions: [], // Questions are not needed for the list view
             } as ExamWithQuestions);
         }
     }
@@ -295,8 +300,9 @@ export async function duplicateExam(
     }
 
     // Create new exam with modified name
+    const { id, questions, ...examData } = originalExam;
     const newExamData: ExamData = {
-        ...originalExam,
+        ...examData,
         name: `${originalExam.name} (Copy)`,
         status: 'draft',
     };

@@ -11,35 +11,42 @@ interface CodeBlockProps {
 export function CodeBlock({ code }: CodeBlockProps) {
   const [hasCopied, setHasCopied] = useState(false);
 
-  const copyToClipboard = () => {
-    const copyToClipboardFallback = () => {
-      const textArea = document.createElement("textarea");
-      textArea.value = code;
-      document.body.appendChild(textArea);
-      textArea.select();
-      try {
-        document.execCommand("copy");
+  const copyToClipboard = async () => {
+    const showSuccess = () => {
         setHasCopied(true);
         setTimeout(() => {
           setHasCopied(false);
         }, 2000);
+    }
+    
+    const fallbackCopyToClipboard = () => {
+      const textArea = document.createElement("textarea");
+      textArea.value = code;
+      textArea.style.position = "absolute";
+      textArea.style.top = "-9999px";
+      textArea.style.left = "-9999px";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand("copy");
+        showSuccess();
       } catch (err) {
-        console.error("Failed to copy text: ", err);
+        console.error("Fallback: Failed to copy text: ", err);
       }
       document.body.removeChild(textArea);
     };
 
     if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(code).then(() => {
-        setHasCopied(true);
-        setTimeout(() => {
-          setHasCopied(false);
-        }, 2000);
-      }).catch(() => {
-        copyToClipboardFallback();
-      });
+        try {
+            await navigator.clipboard.writeText(code);
+            showSuccess();
+        } catch (err) {
+            console.error("Failed to copy with navigator.clipboard, trying fallback: ", err);
+            fallbackCopyToClipboard();
+        }
     } else {
-      copyToClipboardFallback();
+      fallbackCopyToClipboard();
     }
   };
 
