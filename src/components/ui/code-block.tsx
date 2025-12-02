@@ -12,12 +12,35 @@ export function CodeBlock({ code }: CodeBlockProps) {
   const [hasCopied, setHasCopied] = useState(false);
 
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(code).then(() => {
-      setHasCopied(true);
-      setTimeout(() => {
-        setHasCopied(false);
-      }, 2000);
-    });
+    const copyToClipboardFallback = () => {
+      const textArea = document.createElement("textarea");
+      textArea.value = code;
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand("copy");
+        setHasCopied(true);
+        setTimeout(() => {
+          setHasCopied(false);
+        }, 2000);
+      } catch (err) {
+        console.error("Failed to copy text: ", err);
+      }
+      document.body.removeChild(textArea);
+    };
+
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(code).then(() => {
+        setHasCopied(true);
+        setTimeout(() => {
+          setHasCopied(false);
+        }, 2000);
+      }).catch(() => {
+        copyToClipboardFallback();
+      });
+    } else {
+      copyToClipboardFallback();
+    }
   };
 
   return (
