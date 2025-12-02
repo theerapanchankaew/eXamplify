@@ -24,7 +24,8 @@ import {
   Upload,
   AlertCircle,
   Pencil,
-  Trash2
+  Trash2,
+  Users
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
@@ -394,6 +395,7 @@ export default function ExamsPage() {
             };
 
             const status = getExamStatus();
+            const isAdminOrInstructor = isClient && (userProfile?.role === 'Admin' || userProfile?.role === 'Instructor');
 
             return (
               <Card key={exam.id} className="flex flex-col h-full hover:shadow-lg transition-all group">
@@ -424,7 +426,7 @@ export default function ExamsPage() {
                   {booking && (
                     <BookingInfo booking={booking} compact />
                   )}
-                  {exam.price && !hasEnrollment && (
+                  {exam.price > 0 && !hasEnrollment && !isAdminOrInstructor && (
                     <div className="flex items-center gap-2 text-sm font-semibold text-primary">
                       <Award className="h-4 w-4" />
                       <span>{exam.price} tokens</span>
@@ -432,121 +434,115 @@ export default function ExamsPage() {
                   )}
                 </CardContent>
 
-                <CardFooter className="mt-auto pt-4 flex-wrap gap-2">
-                  {hasCompleted ? (
-                    // Already completed - show results
-                    <Button asChild className="flex-1 min-w-[120px]">
-                      <Link href={`/exams/${exam.id}/results?courseId=${exam.courseId}`}>
-                        View Results
-                      </Link>
-                    </Button>
-                  ) : status.state === 'scheduled' || status.state === 'upcoming' ? (
-                    // Scheduled - show start exam and view booking
-                    <>
-                      <Button asChild className="flex-1 min-w-[120px]">
-                        <Link href={`/exams/${exam.id}/take?courseId=${exam.courseId}`}>
-                          Start Exam
-                        </Link>
-                      </Button>
-                      <Button variant="outline" asChild>
-                        <Link href={`/exams/${exam.id}/schedule?courseId=${exam.courseId}`}>
-                          <Calendar className="h-4 w-4 mr-1" />
-                          Reschedule
-                        </Link>
-                      </Button>
-                    </>
-                  ) : hasEnrollment ? (
-                    // Enrolled (either through course or direct purchase) - can start exam
-                    <>
-                      <Button asChild className="flex-1 min-w-[120px]">
-                        <Link href={`/exams/${exam.id}/take?courseId=${exam.courseId}`}>
-                          Start Exam
-                        </Link>
-                      </Button>
-                      <Button variant="outline" asChild>
-                        <Link href={`/exams/${exam.id}/schedule?courseId=${exam.courseId}`}>
-                          <Calendar className="h-4 w-4 mr-1" />
-                          Schedule
-                        </Link>
-                      </Button>
-                    </>
-                  ) : (
-                    // Not enrolled - show add to cart
-                    <>
-                      <Button
-                        className="flex-1 min-w-[120px]"
-                        onClick={async () => {
-                          if (!firestore || !user) {
-                            toast({
-                              variant: 'destructive',
-                              title: 'Error',
-                              description: 'You must be logged in.',
-                            });
-                            return;
-                          }
-
-                          try {
-                            const { addToCart } = await import('@/lib/marketplace');
-                            await addToCart(
-                              firestore,
-                              user.uid,
-                              'exam',
-                              exam.id,
-                              exam.name,
-                              exam.price || 0,
-                              exam.description
-                            );
-
-                            toast({
-                              title: 'Added to Cart',
-                              description: `${exam.name} has been added to your cart.`,
-                            });
-                          } catch (error: any) {
-                            toast({
-                              variant: 'destructive',
-                              title: 'Error',
-                              description: error.message || 'Failed to add to cart.',
-                            });
-                          }
-                        }}
-                      >
-                        <ShoppingCart className="h-4 w-4 mr-1" />
-                        Add to Cart
-                      </Button>
-                      <Button variant="outline" asChild>
-                        <Link href={`/exams/${exam.id}?courseId=${exam.courseId}`}>
-                          Details
-                        </Link>
-                      </Button>
-                    </>
-                  )}
-
-                  {/* Admin/Instructor Actions */}
-                  {isClient && (userProfile?.role === 'Admin' || userProfile?.role === 'Instructor') && (
-                    <div className="flex gap-1 border-l pl-2 ml-auto">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        asChild
-                        title="Edit Exam"
-                      >
-                        <Link href={`/admin/exams/${exam.id}/edit?courseId=${exam.courseId}`}>
-                          <Pencil className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => {
-                          setExamToDelete({ courseId: exam.courseId, examId: exam.id });
-                          setDeleteDialogOpen(true);
-                        }}
-                        title="Delete Exam"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                <CardFooter className="mt-auto pt-4 flex items-center gap-2">
+                {isAdminOrInstructor ? (
+                    <div className="flex w-full justify-end gap-1">
+                        <Button variant="ghost" size="icon" asChild title="View Details">
+                            <Link href={`/exams/${exam.id}?courseId=${exam.courseId}`}>
+                                <Search className="h-4 w-4" />
+                            </Link>
+                        </Button>
+                        <Button variant="ghost" size="icon" asChild title="Edit Exam">
+                            <Link href={`/admin/exams/${exam.id}/edit?courseId=${exam.courseId}`}>
+                                <Pencil className="h-4 w-4" />
+                            </Link>
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => {
+                                setExamToDelete({ courseId: exam.courseId, examId: exam.id });
+                                setDeleteDialogOpen(true);
+                            }}
+                            title="Delete Exam"
+                            >
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
                     </div>
+                ) : hasCompleted ? (
+                    <Button asChild className="flex-1 min-w-[120px]">
+                        <Link href={`/exams/${exam.id}/results?courseId=${exam.courseId}`}>
+                            View Results
+                        </Link>
+                    </Button>
+                ) : status.state === 'scheduled' || status.state === 'upcoming' ? (
+                    <>
+                        <Button asChild className="flex-1 min-w-[120px]">
+                            <Link href={`/exams/${exam.id}/take?courseId=${exam.courseId}`}>
+                            Start Exam
+                            </Link>
+                        </Button>
+                        <Button variant="outline" asChild>
+                            <Link href={`/exams/${exam.id}/schedule?courseId=${exam.courseId}`}>
+                            <Calendar className="h-4 w-4 mr-1" />
+                            Reschedule
+                            </Link>
+                        </Button>
+                    </>
+                ) : hasEnrollment ? (
+                    <>
+                        <Button asChild className="flex-1 min-w-[120px]">
+                            <Link href={`/exams/${exam.id}/take?courseId=${exam.courseId}`}>
+                            Start Exam
+                            </Link>
+                        </Button>
+                        <Button variant="outline" asChild>
+                            <Link href={`/exams/${exam.id}/schedule?courseId=${exam.courseId}`}>
+                            <Calendar className="h-4 w-4 mr-1" />
+                            Schedule
+                            </Link>
+                        </Button>
+                    </>
+                ) : (
+                    <>
+                        <Button
+                            className="flex-1 min-w-[120px]"
+                            onClick={async () => {
+                                if (!firestore || !user) {
+                                toast({
+                                    variant: 'destructive',
+                                    title: 'Error',
+                                    description: 'You must be logged in.',
+                                });
+                                return;
+                                }
+    
+                                try {
+                                const { addToCart } = await import('@/lib/marketplace');
+                                await addToCart(
+                                    firestore,
+                                    user.uid,
+                                    'exam',
+                                    exam.id,
+                                    exam.name,
+                                    exam.price || 0,
+                                    exam.description
+                                );
+    
+                                toast({
+                                    title: 'Added to Cart',
+                                    description: `${exam.name} has been added to your cart.`,
+                                });
+                                } catch (error: any) {
+                                toast({
+                                    variant: 'destructive',
+                                    title: 'Error',
+                                    description: error.message || 'Failed to add to cart.',
+                                });
+                                }
+                            }}
+                            >
+                            <ShoppingCart className="h-4 w-4 mr-1" />
+                            Add to Cart
+                        </Button>
+                        <Button variant="outline" asChild>
+                            <Link href={`/community?courseId=${exam.courseId}`}>
+                                <Users className="h-4 w-4 mr-1" />
+                                Community
+                            </Link>
+                        </Button>
+                    </>
                   )}
                 </CardFooter>
               </Card>
