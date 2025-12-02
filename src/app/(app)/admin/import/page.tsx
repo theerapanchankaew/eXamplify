@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Upload, FileJson, CheckCircle2, XCircle, AlertCircle, Download } from 'lucide-react';
 import { validateCoursesData } from '@/lib/import/validation';
-import template from '@/data/template-course.json';
+import template from '../../../../data/template-course.json';
 
 interface ImportStats {
     coursesImported: number;
