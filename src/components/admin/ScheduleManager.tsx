@@ -14,7 +14,8 @@ import {
     createExamSchedule,
     updateExamSchedule,
     deleteExamSchedule,
-    bulkCreateExamSchedules
+    bulkCreateExamSchedules,
+    bulkDeleteExamSchedules
 } from '@/lib/scheduling';
 import { Calendar as CalendarIcon, Clock, Users, Plus, CalendarClock, MoreVertical, Edit, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -51,6 +52,7 @@ import {
     DialogFooter,
     DialogClose,
 } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 interface ScheduleManagerProps {
@@ -80,7 +82,7 @@ export function ScheduleManager({
     const firestore = useFirestore();
     const { toast } = useToast();
 
-    const [isCreating, setIsCreating] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
 
     // State for create form
     const [createExam, setCreateExam] = useState<string>('');
@@ -95,11 +97,34 @@ export function ScheduleManager({
     const [editCapacity, setEditCapacity] = useState<number>(30);
 
     // State for delete dialog
-    const [deleteSchedule, setDeleteSchedule] = useState<ExamSchedule | null>(null);
+    const [deleteTarget, setDeleteTarget] = useState<ExamSchedule | 'selected' | null>(null);
+
+    // State for selection
+    const [selectedSchedules, setSelectedSchedules] = useState<Set<string>>(new Set());
 
     const sortedSchedules = useMemo(() => {
         return [...schedules].sort((a, b) => a.date.toMillis() - b.date.toMillis());
     }, [schedules]);
+
+    const handleSelect = (scheduleId: string) => {
+        setSelectedSchedules(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(scheduleId)) {
+                newSet.delete(scheduleId);
+            } else {
+                newSet.add(scheduleId);
+            }
+            return newSet;
+        });
+    };
+
+    const handleSelectAll = (checked: boolean) => {
+        if (checked) {
+            setSelectedSchedules(new Set(sortedSchedules.map(s => s.id)));
+        } else {
+            setSelectedSchedules(new Set());
+        }
+    };
 
     const handleCreateSchedule = async () => {
         if (!firestore || !user || !createExam || !createDate) {
@@ -110,7 +135,7 @@ export function ScheduleManager({
         const exam = exams.find(e => e.id === createExam);
         if (!exam) return;
 
-        setIsCreating(true);
+        setIsProcessing(true);
         try {
             await createExamSchedule(
                 firestore,
@@ -127,7 +152,7 @@ export function ScheduleManager({
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to create schedule.' });
         } finally {
-            setIsCreating(false);
+            setIsProcessing(false);
         }
     };
 
@@ -140,7 +165,7 @@ export function ScheduleManager({
         const exam = exams.find(e => e.id === createExam);
         if (!exam) return;
 
-        setIsCreating(true);
+        setIsProcessing(true);
         try {
             await bulkCreateExamSchedules(firestore, exam, createCapacity, user.uid);
             toast({ title: 'Bulk Creation Complete', description: `Created schedules for the next 30 days.` });
@@ -148,7 +173,7 @@ export function ScheduleManager({
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to create schedules.' });
         } finally {
-            setIsCreating(false);
+            setIsProcessing(false);
         }
     };
 
@@ -162,7 +187,7 @@ export function ScheduleManager({
     const handleUpdateSchedule = async () => {
         if (!firestore || !editSchedule) return;
 
-        setIsCreating(true);
+        setIsProcessing(true);
         try {
             await updateExamSchedule(firestore, editSchedule.id, {
                 date: editDate,
@@ -175,23 +200,29 @@ export function ScheduleManager({
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Update Failed', description: error.message });
         } finally {
-            setIsCreating(false);
+            setIsProcessing(false);
         }
     };
 
-    const handleDeleteSchedule = async () => {
-        if (!firestore || !deleteSchedule) return;
+    const handleDelete = async () => {
+        if (!firestore || !deleteTarget) return;
 
-        setIsCreating(true);
+        setIsProcessing(true);
         try {
-            await deleteExamSchedule(firestore, deleteSchedule.id);
-            toast({ title: 'Schedule Deleted', description: 'The schedule has been successfully deleted.' });
-            setDeleteSchedule(null);
+            if (deleteTarget === 'selected') {
+                await bulkDeleteExamSchedules(firestore, Array.from(selectedSchedules));
+                toast({ title: 'Schedules Deleted', description: `${selectedSchedules.size} schedules have been deleted.` });
+                setSelectedSchedules(new Set());
+            } else {
+                await deleteExamSchedule(firestore, (deleteTarget as ExamSchedule).id);
+                toast({ title: 'Schedule Deleted', description: 'The schedule has been successfully deleted.' });
+            }
+            setDeleteTarget(null);
             window.location.reload();
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Deletion Failed', description: error.message });
         } finally {
-            setIsCreating(false);
+            setIsProcessing(false);
         }
     };
 
@@ -249,10 +280,10 @@ export function ScheduleManager({
                                 />
                             </div>
                             <div className="pt-4 space-y-2">
-                                <Button onClick={handleCreateSchedule} disabled={isCreating || !createExam || !createDate} className="w-full">
-                                    {isCreating ? 'Creating...' : 'Create Schedule'}
+                                <Button onClick={handleCreateSchedule} disabled={isProcessing || !createExam || !createDate} className="w-full">
+                                    {isProcessing ? 'Creating...' : 'Create Schedule'}
                                 </Button>
-                                <Button onClick={handleBulkCreate} disabled={isCreating || !createExam} variant="outline" className="w-full">
+                                <Button onClick={handleBulkCreate} disabled={isProcessing || !createExam} variant="outline" className="w-full">
                                     <Plus className="mr-2 h-4 w-4" />
                                     Bulk Create (30 Days)
                                 </Button>
@@ -267,9 +298,17 @@ export function ScheduleManager({
     return (
         <>
             <Card>
-                <CardHeader>
-                    <CardTitle>Existing Schedules</CardTitle>
-                    <CardDescription>View and manage all exam schedules</CardDescription>
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle>Existing Schedules</CardTitle>
+                        <CardDescription>View and manage all exam schedules</CardDescription>
+                    </div>
+                    {selectedSchedules.size > 0 && (
+                        <Button variant="destructive" onClick={() => setDeleteTarget('selected')}>
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete Selected ({selectedSchedules.size})
+                        </Button>
+                    )}
                 </CardHeader>
                 <CardContent>
                     {isLoadingSchedules ? (
@@ -294,6 +333,12 @@ export function ScheduleManager({
                         <Table>
                             <TableHeader>
                                 <TableRow>
+                                    <TableHead padding="checkbox">
+                                        <Checkbox
+                                            checked={selectedSchedules.size === sortedSchedules.length}
+                                            onCheckedChange={handleSelectAll}
+                                        />
+                                    </TableHead>
                                     <TableHead>Exam</TableHead>
                                     <TableHead>Date</TableHead>
                                     <TableHead>Time</TableHead>
@@ -304,7 +349,13 @@ export function ScheduleManager({
                             </TableHeader>
                             <TableBody>
                                 {sortedSchedules.map((schedule) => (
-                                    <TableRow key={schedule.id}>
+                                    <TableRow key={schedule.id} data-state={selectedSchedules.has(schedule.id) && "selected"}>
+                                        <TableCell padding="checkbox">
+                                            <Checkbox
+                                                checked={selectedSchedules.has(schedule.id)}
+                                                onCheckedChange={() => handleSelect(schedule.id)}
+                                            />
+                                        </TableCell>
                                         <TableCell className="font-medium">{schedule.examName}</TableCell>
                                         <TableCell>{format(schedule.date.toDate(), 'MMM d, yyyy')}</TableCell>
                                         <TableCell>
@@ -338,7 +389,7 @@ export function ScheduleManager({
                                                         <span>Edit</span>
                                                     </DropdownMenuItem>
                                                     <DropdownMenuItem
-                                                        onClick={() => setDeleteSchedule(schedule)}
+                                                        onClick={() => setDeleteTarget(schedule)}
                                                         className="text-destructive"
                                                     >
                                                         <Trash2 className="mr-2 h-4 w-4" />
@@ -402,27 +453,29 @@ export function ScheduleManager({
                         <DialogClose asChild>
                             <Button variant="outline">Cancel</Button>
                         </DialogClose>
-                        <Button onClick={handleUpdateSchedule} disabled={isCreating}>
-                            {isCreating ? 'Saving...' : 'Save Changes'}
+                        <Button onClick={handleUpdateSchedule} disabled={isProcessing}>
+                            {isProcessing ? 'Saving...' : 'Save Changes'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
             {/* Delete Confirmation Dialog */}
-            <AlertDialog open={!!deleteSchedule} onOpenChange={(open) => !open && setDeleteSchedule(null)}>
+            <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete the schedule
-                            and any associated bookings. Booked students will be notified.
+                            {deleteTarget === 'selected'
+                                ? `This will permanently delete the ${selectedSchedules.size} selected schedules and any associated bookings.`
+                                : 'This action cannot be undone. This will permanently delete the schedule and any associated bookings.'}
+                            Booked students will be notified.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDeleteSchedule} disabled={isCreating} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                            {isCreating ? 'Deleting...' : 'Delete'}
+                        <AlertDialogAction onClick={handleDelete} disabled={isProcessing} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            {isProcessing ? 'Deleting...' : 'Delete'}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

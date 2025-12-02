@@ -61,8 +61,6 @@ export const updateExamSchedule = async (
         finalUpdates.date = Timestamp.fromDate(updates.date);
     }
 
-    // Optional: Add logic to re-validate status based on capacity and bookedCount
-
     await updateDoc(scheduleRef, finalUpdates);
 };
 
@@ -74,10 +72,22 @@ export const deleteExamSchedule = async (
     scheduleId: string
 ): Promise<void> => {
     const scheduleRef = doc(firestore, 'examSchedules', scheduleId);
-
-    // Optional: Add logic here to handle associated bookings, e.g., notify users.
-
     await deleteDoc(scheduleRef);
+};
+
+/**
+ * Bulk deletes multiple exam schedules.
+ */
+export const bulkDeleteExamSchedules = async (
+    firestore: Firestore,
+    scheduleIds: string[]
+): Promise<void> => {
+    const batch = writeBatch(firestore);
+    scheduleIds.forEach(id => {
+        const scheduleRef = doc(firestore, 'examSchedules', id);
+        batch.delete(scheduleRef);
+    });
+    await batch.commit();
 };
 
 
