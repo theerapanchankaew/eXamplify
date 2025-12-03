@@ -2,8 +2,8 @@
 
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 import { connectFirestoreEmulator } from 'firebase/firestore';
 
@@ -50,34 +50,6 @@ export function getSdks(firebaseApp: FirebaseApp) {
     firestore,
     functions,
   };
-}
-
-
-export async function login() {
-  const { auth, firestore } = initializeFirebase();
-  const provider = new GoogleAuthProvider();
-
-  try {
-    const result = await signInWithPopup(auth, provider);
-    const user = result.user;
-
-    // Check if the user already exists in Firestore
-    const userDocRef = doc(firestore, "users", user.uid);
-    const userDoc = await getDoc(userDocRef);
-
-    if (!userDoc.exists()) {
-      // Create a new user document if it doesn't exist
-      await setDoc(userDocRef, {
-        id: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-        role: 'user', // or any default role
-      });
-    }
-  } catch (error) {
-    console.error("Error during login:", error);
-  }
 }
 
 export * from './provider';
