@@ -1,6 +1,6 @@
 // Utility functions for working with slides
 
-import { Slide, ContentBlock, NewSlide, NewContentBlock } from '@/types/slides';
+import { Slide, ContentBlock, ImageBlock, NewSlide, NewContentBlock } from '@/types/slides';
 import { nanoid } from 'nanoid';
 
 /**
@@ -48,7 +48,7 @@ export function createTextBlock(
 export function createImageBlock(
     url: string,
     alt: string = '',
-    options: Partial<Omit<NewContentBlock, 'type'>> = {}
+    options: Partial<Pick<ImageBlock, 'order' | 'caption' | 'size'>> = {}
 ): ContentBlock {
     return {
         id: generateId(),
@@ -57,7 +57,7 @@ export function createImageBlock(
         url,
         alt,
         caption: options.caption,
-        size: 'medium',
+        size: options.size ?? 'medium',
     };
 }
 
@@ -133,7 +133,8 @@ export function updateBlockInSlide(
     return {
         ...slide,
         blocks: slide.blocks.map(block =>
-            block.id === blockId ? { ...block, ...updates } : block
+            // Updates must not change the block's type; cast keeps the union intact.
+            block.id === blockId ? ({ ...block, ...updates, type: block.type } as ContentBlock) : block
         ),
     };
 }

@@ -30,7 +30,6 @@ See [`.env.example`](.env.example) for the full list.
 | `NEXT_PUBLIC_FIREBASE_*` | Build time | Inlined into the browser bundle — must be set **before** `next build` |
 | `NEXT_PUBLIC_GRADE_EXAM_URL` | Build time | Optional. Defaults to the built-in `/api/grade-exam` |
 | `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` | Runtime (secret) | Service account for `firebase-admin`. Not needed on Cloud Run / Firebase App Hosting |
-| `STRICT_BUILD` | Build time | `true` = fail build on TypeScript/ESLint errors |
 
 ## Deploy
 
@@ -83,7 +82,9 @@ docker run -p 3000:3000 \
 `functions/` still contains the original `gradeExam` Cloud Function (requires the
 Blaze plan). The app no longer calls it unless `NEXT_PUBLIC_GRADE_EXAM_URL` points to it.
 
-## Known issues
+## Notes
 
-- Pre-existing TypeScript errors — run `npm run typecheck`. Builds skip these
-  checks until `STRICT_BUILD=true`.
+- `npm run typecheck` must pass; type errors fail `next build`.
+- `src/ai` (Genkit flows) is not wired into the app yet and is excluded from
+  type-checking; install `genkit` and `@genkit-ai/google-genai` before enabling it.
+- ESLint is not configured yet; builds skip linting.
