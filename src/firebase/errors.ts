@@ -1,5 +1,5 @@
 'use client';
-import { getAuth, type User } from 'firebase/auth';
+import { getAuth, type User } from '@/lib/auth/client';
 
 type SecurityRuleContext = {
   path: string;

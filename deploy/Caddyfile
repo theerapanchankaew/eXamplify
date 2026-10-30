@@ -1,0 +1,40 @@
+# Reverse proxy + HTTPS for eXamplify.
+# SITE_ADDRESS and TLS_MODE come from .env (see docs/DEPLOYMENT.md).
+#
+# TLS_MODE:
+#   auto      public DNS name, ports 80/443 reachable from the internet -> Let's Encrypt
+#   files     your organisation's certificate: deploy/certs/fullchain.pem + privkey.pem
+#   internal  Caddy's own CA (intranet/testing; browsers warn unless its root CA is trusted)
+
+(tls-auto) {
+}
+
+(tls-files) {
+	tls /certs/fullchain.pem /certs/privkey.pem
+}
+
+(tls-internal) {
+	tls internal
+}
+
+{$SITE_ADDRESS} {
+	import tls-{$TLS_MODE}
+
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Camera is used for exam proctoring (WebcamMonitor).
+		Permissions-Policy "camera=(self), microphone=(), geolocation=()"
+		-Server
+	}
+
+	request_body {
+		max_size 5MB
+	}
+
+	reverse_proxy app:3000
+}

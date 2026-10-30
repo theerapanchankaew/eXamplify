@@ -1,6 +1,6 @@
 // Slide Content Data Models and Types
 
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp } from '@/lib/db/wire';
 
 /**
  * Slide Layout Types

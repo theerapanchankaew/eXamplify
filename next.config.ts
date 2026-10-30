@@ -2,6 +2,8 @@ import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // Keep the PostgreSQL driver as a plain Node dependency (not bundled).
+  serverExternalPackages: ['pg'],
   /* config options here */
   // TypeScript errors fail the build (run `npm run typecheck` locally).
   typescript: {

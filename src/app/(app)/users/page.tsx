@@ -64,9 +64,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useCollection, useFirestore, useMemoFirebase, useAuth, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { collection, query, doc, deleteDoc, setDoc, writeBatch } from 'firebase/firestore';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { collection, query, doc, deleteDoc, setDoc, writeBatch } from '@/lib/db/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 
@@ -76,7 +75,7 @@ const userRoleSchema = z.object({
 
 const newUserSchema = z.object({
     email: z.string().email(),
-    password: z.string().min(6, 'Password must be at least 6 characters'),
+    password: z.string().min(8, 'Password must be at least 8 characters'),
     role: z.enum(['Admin', 'Instructor', 'Student']),
     username: z.string().min(1, 'Username is required'),
 });
@@ -87,7 +86,6 @@ type NewUserFormData = z.infer<typeof newUserSchema>;
 
 export default function UsersPage() {
   const firestore = useFirestore();
-  const auth = useAuth();
   const { toast } = useToast();
 
   const usersCollectionQuery = useMemoFirebase(
@@ -162,33 +160,28 @@ export default function UsersPage() {
     });
   };
 
+  const adminUsersApi = async (method: 'POST' | 'DELETE', body: unknown) => {
+    const res = await fetch('/api/admin/users', {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(body),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json?.error?.message || `Request failed (${res.status}).`);
+    return json;
+  };
+
   const handleCreateUser = async (data: NewUserFormData) => {
-    if (!firestore || !auth) return;
-
-    // This is a client-side user creation flow. For enhanced security and to avoid
-    // potential issues with short-lived admin auth tokens, it's recommended to move
-    // this logic to a secure backend environment (e.g., a Cloud Function) in a
-    // production application.
+    // Created on the server so the admin stays signed in and the role is
+    // assigned by a trusted party.
     try {
-        const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-        const newUser = userCredential.user;
-
-        const batch = writeBatch(firestore);
-
-        const userDocRef = doc(firestore, 'users', newUser.uid);
-        batch.set(userDocRef, {
-            id: newUser.uid,
+        await adminUsersApi('POST', {
             email: data.email,
-            role: data.role,
+            password: data.password,
             username: data.username,
+            role: data.role,
         });
-
-        if (data.role === 'Admin') {
-            const adminRoleRef = doc(firestore, 'roles_admin', newUser.uid);
-            batch.set(adminRoleRef, { role: 'admin' });
-        }
-
-        await batch.commit();
 
         toast({
             title: 'User Created',
@@ -209,27 +202,15 @@ export default function UsersPage() {
 
 
   const handleDeleteUser = async () => {
-    if (!firestore || !selectedUser) return;
-    const userDocRef = doc(firestore, 'users', selectedUser.id);
-    const adminRoleRef = doc(firestore, 'roles_admin', selectedUser.id);
-    const batch = writeBatch(firestore);
+    if (!selectedUser) return;
 
     try {
-      // NOTE: Deleting a user from Authentication is a privileged operation
-      // and typically requires a backend function (e.g., Cloud Functions)
-      // to be called by an admin. This implementation only deletes the
-      // Firestore document.
-      batch.delete(userDocRef);
+      // Deletes the login account and the users/{uid} profile.
+      await adminUsersApi('DELETE', { uid: selectedUser.id });
 
-      if (selectedUser.role === 'Admin') {
-        batch.delete(adminRoleRef);
-      }
-
-      await batch.commit();
-      
       toast({
-        title: 'User Document Deleted',
-        description: `User ${selectedUser.email}'s data has been deleted from Firestore. The Auth record still exists.`,
+        title: 'User Deleted',
+        description: `User ${selectedUser.email} has been deleted.`,
       });
     } catch (error: any) {
       toast({

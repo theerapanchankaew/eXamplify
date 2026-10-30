@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useFirestore, useUser, useDoc, useMemoFirebase, useCollection } from '@/firebase';
-import { doc, collection, query, collectionGroup, where } from 'firebase/firestore';
+import { doc, collection, query, collectionGroup, where } from '@/lib/db/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';

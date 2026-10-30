@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useFirestore, useUser, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, query, doc, addDoc, deleteDoc, updateDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, doc, addDoc, deleteDoc, updateDoc, Timestamp } from '@/lib/db/client';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

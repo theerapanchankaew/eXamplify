@@ -47,7 +47,7 @@ import {
   orderBy,
   doc,
   collectionGroup,
-} from 'firebase/firestore';
+} from '@/lib/db/client';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CreditCard, Wallet, Ticket } from 'lucide-react';

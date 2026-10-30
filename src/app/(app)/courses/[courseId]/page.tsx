@@ -17,7 +17,7 @@ import {
   writeBatch,
   increment,
   where,
-} from 'firebase/firestore';
+} from '@/lib/db/client';
 import { getUserTokenBalance } from '@/lib/tokens';
 import { calculateCourseProgress, getNextAction } from '@/lib/lesson-progress';
 import { Progress } from '@/components/ui/progress';

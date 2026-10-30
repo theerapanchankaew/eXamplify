@@ -1,4 +1,4 @@
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp } from '@/lib/db/wire';
 
 export type EnrollmentStatus = 'not_enrolled' | 'enrolled' | 'completed';
 

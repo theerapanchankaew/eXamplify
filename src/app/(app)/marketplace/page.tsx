@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, collectionGroup } from 'firebase/firestore';
+import { collection, query, collectionGroup } from '@/lib/db/client';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

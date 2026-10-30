@@ -2,7 +2,7 @@
 
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useFirestore, useUser, useDoc, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, collection, query } from 'firebase/firestore';
+import { doc, collection, query } from '@/lib/db/client';
 import { ExamTaker } from '@/components/exam/ExamTaker';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';

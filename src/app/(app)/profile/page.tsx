@@ -36,8 +36,8 @@ import {
 } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { doc, updateDoc } from 'firebase/firestore';
-import { updateProfile } from "firebase/auth";
+import { doc, updateDoc } from '@/lib/db/client';
+import { updateProfile } from '@/lib/auth/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useEffect, useState, useRef } from 'react';

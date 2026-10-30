@@ -13,7 +13,7 @@ import {
     writeBatch,
     serverTimestamp,
     Firestore,
-} from 'firebase/firestore';
+} from '@/lib/db/client';
 
 export interface Question {
     id: string;

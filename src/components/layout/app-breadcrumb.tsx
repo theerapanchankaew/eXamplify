@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { doc } from '@/lib/db/client';
 import {
     Breadcrumb,
     BreadcrumbList,
@@ -124,7 +124,7 @@ export function AppBreadcrumb() {
                     try {
                         if (prevSegment === 'courses') {
                             const courseDoc = await doc(firestore, 'courses', segment);
-                            const courseSnap = await import('firebase/firestore').then(m => m.getDoc(courseDoc));
+                            const courseSnap = await import('@/lib/db/client').then(m => m.getDoc(courseDoc));
                             if (courseSnap.exists()) {
                                 entityName = courseSnap.data()?.name || entityName;
                             }
@@ -134,7 +134,7 @@ export function AppBreadcrumb() {
                         } else if (prevSegment === 'modules') {
                             const courseId = paths[i - 2];
                             const moduleDoc = doc(firestore, `courses/${courseId}/modules/${segment}`);
-                            const moduleSnap = await import('firebase/firestore').then(m => m.getDoc(moduleDoc));
+                            const moduleSnap = await import('@/lib/db/client').then(m => m.getDoc(moduleDoc));
                             if (moduleSnap.exists()) {
                                 entityName = moduleSnap.data()?.name || entityName;
                             }
@@ -142,7 +142,7 @@ export function AppBreadcrumb() {
                             const courseId = paths[i - 4];
                             const moduleId = paths[i - 2];
                             const chapterDoc = doc(firestore, `courses/${courseId}/modules/${moduleId}/chapters/${segment}`);
-                            const chapterSnap = await import('firebase/firestore').then(m => m.getDoc(chapterDoc));
+                            const chapterSnap = await import('@/lib/db/client').then(m => m.getDoc(chapterDoc));
                             if (chapterSnap.exists()) {
                                 entityName = chapterSnap.data()?.name || entityName;
                             }
@@ -151,7 +151,7 @@ export function AppBreadcrumb() {
                             const moduleId = paths[i - 4];
                             const chapterId = paths[i - 2];
                             const lessonDoc = doc(firestore, `courses/${courseId}/modules/${moduleId}/chapters/${chapterId}/lessons/${segment}`);
-                            const lessonSnap = await import('firebase/firestore').then(m => m.getDoc(lessonDoc));
+                            const lessonSnap = await import('@/lib/db/client').then(m => m.getDoc(lessonDoc));
                             if (lessonSnap.exists()) {
                                 entityName = lessonSnap.data()?.title || entityName;
                             }

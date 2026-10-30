@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { FieldValue } from 'firebase-admin/firestore';
-import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
+import { assertSameOrigin, currentAuth } from '@/server/auth';
+import { commit, getDocument, runQuery, SYSTEM } from '@/server/store';
+import { autoId } from '@/lib/db/wire';
 
-// firebase-admin needs the Node.js runtime (not Edge).
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -29,19 +29,17 @@ const normalize = (value: unknown) => String(value ?? '').trim().toLowerCase();
  * Cloud Function). Correct answers never leave the server.
  */
 export async function POST(req: Request) {
-  // 1. Authentication
-  const authHeader = req.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-  }
-
-  let userId: string;
+  // 1. Authentication (session cookie)
   try {
-    const decoded = await getAdminAuth().verifyIdToken(authHeader.slice('Bearer '.length));
-    userId = decoded.uid;
+    assertSameOrigin(req);
   } catch {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
+  const auth = await currentAuth();
+  if (!auth) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const userId = auth.uid;
 
   let body: GradeExamRequest;
   try {
@@ -51,39 +49,39 @@ export async function POST(req: Request) {
   }
 
   const { examId, courseId, answers, startTime } = body ?? ({} as GradeExamRequest);
+  const validId = (v: unknown) => typeof v === 'string' && /^[^/]{1,300}$/.test(v);
   if (
-    typeof examId !== 'string' || !examId ||
-    typeof courseId !== 'string' || !courseId ||
+    !validId(examId) ||
+    !validId(courseId) ||
     typeof answers !== 'object' || answers === null
   ) {
     return NextResponse.json({ error: 'examId, courseId and answers are required.' }, { status: 400 });
   }
 
-  const db = getAdminDb();
-
   try {
-    // 2. Exam details
-    const examSnap = await db.doc(`courses/${courseId}/exams/${examId}`).get();
-    if (!examSnap.exists) {
+    // 2. Exam details (trusted server read)
+    const exam = await getDocument(`courses/${courseId}/exams/${examId}`);
+    if (!exam?.data) {
       return NextResponse.json({ error: 'Exam not found.' }, { status: 404 });
     }
-    const examData = examSnap.data()!;
-    const passingScore = examData.passingScore || 50;
+    const passingScore = Number(exam.data.passingScore) || 50;
 
     // 3. Questions with answers (server-side only)
-    const questionsSnap = await db.collection(`courses/${courseId}/exams/${examId}/questions`).get();
-    if (questionsSnap.empty) {
+    const questions = await runQuery(SYSTEM, {
+      path: `courses/${courseId}/exams/${examId}/questions`, filters: [], orderBy: [],
+    });
+    if (questions.length === 0) {
       return NextResponse.json({ error: 'No questions found for this exam.' }, { status: 404 });
     }
 
     // 4. Grade
     let score = 0;
     let totalPoints = 0;
-    questionsSnap.docs.forEach((questionDoc) => {
-      const question = questionDoc.data();
+    questions.forEach((questionDoc) => {
+      const question = questionDoc.data ?? {};
       const userAnswer = answers[questionDoc.id];
       const correctAnswer = question.correctAnswer ?? question.answer;
-      const points = question.points || 1;
+      const points = Number(question.points) || 1;
 
       totalPoints += points;
       if (userAnswer && correctAnswer != null && normalize(userAnswer) === normalize(correctAnswer)) {
@@ -95,7 +93,8 @@ export async function POST(req: Request) {
     const passed = percentage >= passingScore;
 
     // 5. Save result
-    const resultRef = await db.collection('examResults').add({
+    const resultId = autoId();
+    const writes: Parameters<typeof commit>[1] = [{ type: 'set', path: `examResults/${resultId}`, data: {
       userId,
       examId,
       courseId,
@@ -104,41 +103,43 @@ export async function POST(req: Request) {
       percentage,
       passed,
       answers,
-      submittedAt: FieldValue.serverTimestamp(),
+      submittedAt: { __op: 'serverTimestamp' },
       timeSpent: typeof startTime === 'number' ? Math.floor((Date.now() - startTime) / 1000) : null,
-    });
+    } }];
 
     // 6. Issue certificate if passed (once per course)
     let certificateIssued = false;
     if (passed) {
       try {
-        const existingCerts = await db
-          .collection(`users/${userId}/certificates`)
-          .where('courseId', '==', courseId)
-          .get();
-        if (existingCerts.empty) {
-          const courseSnap = await db.doc(`courses/${courseId}`).get();
-          const courseName = courseSnap.exists ? courseSnap.data()!.name : 'Course';
-          const certId = 'CERT-' + Math.random().toString(36).slice(2, 11).toUpperCase();
-          await db.collection(`users/${userId}/certificates`).add({
+        const existingCerts = await runQuery(SYSTEM, {
+          path: `users/${userId}/certificates`,
+          filters: [{ field: 'courseId', op: '==', value: courseId }], orderBy: [],
+        });
+        if (existingCerts.length === 0) {
+          const course = await getDocument(`courses/${courseId}`);
+          const courseName = (course?.data?.name as string) || 'Course';
+          const certId = 'CERT-' + autoId().slice(0, 9).toUpperCase();
+          writes.push({ type: 'set', path: `users/${userId}/certificates/${autoId()}`, data: {
             userId,
             courseId,
             courseName,
             instructorName: 'eXamplify Instructor',
-            issueDate: FieldValue.serverTimestamp(),
+            issueDate: { __op: 'serverTimestamp' },
             certificateId: certId,
             metadata: {
               version: '1.0',
               issuer: 'eXamplify Platform',
               examScore: percentage,
             },
-          });
+          } });
           certificateIssued = true;
         }
       } catch (certError) {
         console.error('Certificate issuance error:', certError);
       }
     }
+    // Result and certificate are written atomically.
+    await commit(SYSTEM, writes);
 
     // 7. Response
     const response: GradeExamResponse = {
@@ -147,7 +148,7 @@ export async function POST(req: Request) {
       percentage,
       passed,
       certificateIssued,
-      resultId: resultRef.id,
+      resultId,
     };
     return NextResponse.json(response);
   } catch (error: any) {

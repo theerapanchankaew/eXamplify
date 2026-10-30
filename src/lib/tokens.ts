@@ -1,4 +1,4 @@
-import { collection, getDocs, query, Firestore, collectionGroup } from 'firebase/firestore';
+import { collection, getDocs, query, Firestore, collectionGroup } from '@/lib/db/client';
 
 /**
  * Calculate user's current token balance by summing all transactions

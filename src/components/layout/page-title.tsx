@@ -3,7 +3,7 @@ import { usePathname } from 'next/navigation';
 import { getMenuItems, settingsItem } from '@/lib/menu-items';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { useDoc } from '@/firebase/firestore/use-doc';
-import { doc } from 'firebase/firestore';
+import { doc } from '@/lib/db/client';
 
 
 export function PageTitle() {

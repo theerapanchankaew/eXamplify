@@ -1,90 +1,70 @@
 # eXamplify
 
-Learning & examination platform built with **Next.js 15** + **Firebase (Auth, Firestore)**.
+Learning & examination platform — **Next.js 15 + PostgreSQL**, fully self-hosted
+(no Google Firebase dependency). Runs on one VM with Docker Compose.
 
-The app is cloud-portable: the same code deploys to Vercel, Netlify, Cloud Run,
-Firebase App Hosting or self-hosted Docker by changing environment variables only.
+**Deploying? → [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** (step-by-step, Thai)
 
-| Part | Runs on |
-|---|---|
-| UI + API routes (incl. `/api/grade-exam`) | Any Node.js host |
-| Auth + Firestore | Firebase (Spark free plan is enough) |
+## Architecture
+
+```
+Browser ──HTTPS──> Caddy (TLS, headers) ──> Next.js app ──> PostgreSQL
+                                              │
+                         /api/db      document API (Firestore-compatible)
+                         /api/auth/*  sign-up / sign-in / sessions
+                         /api/admin/users, /api/grade-exam, /api/health
+```
+
+| Layer | Where | Notes |
+|---|---|---|
+| Data model | `documents` table (jsonb) | Same paths as before: `courses/{id}/modules/{id}/...` |
+| Browser data API | `src/lib/db/client.ts` | Same functions as the Firestore SDK (`collection`, `query`, `where`, `getDocs`, `onSnapshot`, `runTransaction`...). Pages import it via `@/firebase` hooks |
+| Access control | `src/server/rules.ts` | Port of the former `firestore.rules`; every read/write is checked on the server |
+| Store | `src/server/store.ts` | Queries, atomic commits, write transforms (`serverTimestamp`, `increment`...) |
+| Auth | `src/server/auth.ts`, `src/lib/auth/client.ts` | Email + password (scrypt), httpOnly session cookie; imported Firebase password hashes keep working |
+| Schema | `src/server/db.ts` | Migrations run automatically at startup |
+| Realtime | `onSnapshot` | Polls every 5 s while the tab is visible + refresh after local writes |
+
+`src/firebase/` keeps its historical name so existing pages did not need
+rewriting; it no longer talks to Google.
 
 ## Local development
 
+Requires Node 20+ and PostgreSQL 14+.
+
 ```bash
-cp .env.example .env.local   # fill in your Firebase web config + service account
+cp .env.example .env.local
+# set DATABASE_URL=postgres://user:pass@localhost:5432/examplify
+# set APP_URL=http://localhost:9004 and BOOTSTRAP_ADMIN_EMAILS=you@example.org
 npm install
-npm run dev                  # http://localhost:9004
+npm run dev               # http://localhost:9004 — sign up with the bootstrap e-mail to become Admin
 ```
 
-Use the Firebase Emulator Suite instead of a live project:
-set `NEXT_PUBLIC_USE_FIREBASE_EMULATOR=true` and run `firebase emulators:start`.
+| Command | Purpose |
+|---|---|
+| `npm run typecheck` | TypeScript check (also enforced by `next build`) |
+| `TEST_DATABASE_URL=... npm test` | Store / rules / auth integration tests (wipes that database) |
+| `npm run create-admin -- email` | Create or promote an Admin (scripts need `DATABASE_URL` exported) |
+| `npm run reset-password -- email` | Set a new password, sign the user out everywhere |
+| `npm run migrate:firebase -- --credentials sa.json` | One-time import from the old Firebase project |
 
-## Environment variables
+## Security notes
 
-See [`.env.example`](.env.example) for the full list.
+- Roles are assigned by the server only (self sign-up is always `Student`).
+- Exam answers (`correctAnswer`, `answer`, `explanation`) are removed from
+  question documents for non-staff readers; grading happens in `/api/grade-exam`.
+- State-changing requests require same-origin JSON (CSRF protection).
+- Known inherited rules worth tightening are listed in docs/DEPLOYMENT.md §9.
 
-| Variable | Where | Notes |
-|---|---|---|
-| `NEXT_PUBLIC_FIREBASE_*` | Build time | Inlined into the browser bundle — must be set **before** `next build` |
-| `NEXT_PUBLIC_GRADE_EXAM_URL` | Build time | Optional. Defaults to the built-in `/api/grade-exam` |
-| `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` | Runtime (secret) | Service account for `firebase-admin`. Not needed on Cloud Run / Firebase App Hosting |
+## Repository layout
 
-## Deploy
-
-**Every new domain** must be added in Firebase Console → Authentication →
-Settings → **Authorized domains**, otherwise sign-in fails.
-
-Firestore rules and indexes deploy separately from the app:
-
-```bash
-firebase deploy --only firestore
 ```
-
-### Vercel / Netlify
-1. Import the GitHub repo (framework is detected automatically).
-2. Add all variables from `.env.example` in the project settings.
-3. Deploy, then add the `*.vercel.app` / `*.netlify.app` domain to Authorized domains.
-
-> Vercel Hobby is limited to personal, non-commercial use.
-
-### Cloud Run
-```bash
-IMAGE=asia-southeast1-docker.pkg.dev/PROJECT/REPO/examplify
-docker build --build-arg NEXT_PUBLIC_FIREBASE_API_KEY=... (all NEXT_PUBLIC_* args, see Dockerfile) -t $IMAGE .
-docker push $IMAGE
-gcloud run deploy examplify --image $IMAGE --region asia-southeast1 --allow-unauthenticated
+src/server/        server-only: db, store, rules, auth
+src/lib/db/        browser data layer + shared wire format
+src/lib/auth/      browser auth client
+src/app/api/       API routes
+scripts/           create-admin, reset-password, migrate-from-firebase
+deploy/            Caddyfile, backup.sh, certs/
+tests/             integration tests
+legacy/firebase/   old Firebase config, reference only
 ```
-Grant the Cloud Run service account the **Firebase Admin SDK Administrator Service Agent**
-(or `Cloud Datastore User` + `Firebase Authentication Admin`) role — no key needed.
-
-### Firebase App Hosting
-Values are in [`apphosting.yaml`](apphosting.yaml). Connect the repo in
-Firebase Console → App Hosting (requires the Blaze plan).
-
-### Self-hosted Docker
-```bash
-docker build \
-  --build-arg NEXT_PUBLIC_FIREBASE_API_KEY=... \
-  --build-arg NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=... \
-  --build-arg NEXT_PUBLIC_FIREBASE_PROJECT_ID=... \
-  --build-arg NEXT_PUBLIC_FIREBASE_APP_ID=... \
-  --build-arg NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=... \
-  -t examplify .
-docker run -p 3000:3000 \
-  -e FIREBASE_PROJECT_ID=... -e FIREBASE_CLIENT_EMAIL=... -e FIREBASE_PRIVATE_KEY="..." \
-  examplify
-```
-
-## Legacy Cloud Function
-
-`functions/` still contains the original `gradeExam` Cloud Function (requires the
-Blaze plan). The app no longer calls it unless `NEXT_PUBLIC_GRADE_EXAM_URL` points to it.
-
-## Notes
-
-- `npm run typecheck` must pass; type errors fail `next build`.
-- `src/ai` (Genkit flows) is not wired into the app yet and is excluded from
-  type-checking; install `genkit` and `@genkit-ai/google-genai` before enabling it.
-- ESLint is not configured yet; builds skip linting.

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useForm, useFieldArray, FormProvider } from 'react-hook-form';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query } from 'firebase/firestore';
+import { collection, query } from '@/lib/db/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

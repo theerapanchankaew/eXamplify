@@ -15,7 +15,7 @@ import {
   deleteDoc,
   serverTimestamp,
   writeBatch,
-} from 'firebase/firestore';
+} from '@/lib/db/client';
 import Link from 'next/link';
 
 import {

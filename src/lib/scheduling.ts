@@ -1,7 +1,7 @@
 'use client';
 
-import { doc, setDoc, updateDoc, deleteDoc, Timestamp, collection, query, where, getDocs, writeBatch, runTransaction } from 'firebase/firestore';
-import { Firestore } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc, Timestamp, collection, query, where, getDocs, writeBatch, runTransaction } from '@/lib/db/client';
+import { Firestore } from '@/lib/db/client';
 import { Booking, ExamSchedule, ExamScheduleUpdate } from '@/types/scheduling';
 
 // Must match firestore.rules (`match /bookings/{bookingId}`) and the exams page query.

@@ -8,7 +8,7 @@ import {
     Firestore,
     doc,
     setDoc
-} from 'firebase/firestore';
+} from '@/lib/db/client';
 
 export interface CertificateData {
     userId: string;

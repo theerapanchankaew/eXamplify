@@ -91,10 +91,9 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
             // 1. Get user's auth token
             const token = await user.getIdToken();
 
-            // 2. Grading endpoint. Defaults to the built-in Next.js API route
-            //    (works on any host). Set NEXT_PUBLIC_GRADE_EXAM_URL to use an
-            //    external endpoint instead, e.g. the legacy Cloud Function.
-            const gradeExamUrl = process.env.NEXT_PUBLIC_GRADE_EXAM_URL || '/api/grade-exam';
+            // 2. Server-side grading (answers never reach the browser).
+            //    Authenticated by the session cookie.
+            const gradeExamUrl = '/api/grade-exam';
 
             // 3. Make the fetch request
             const response = await fetch(gradeExamUrl, {
