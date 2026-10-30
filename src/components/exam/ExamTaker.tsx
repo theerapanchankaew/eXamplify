@@ -91,8 +91,10 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
             // 1. Get user's auth token
             const token = await user.getIdToken();
 
-            // 2. Define Cloud Function URL from your environment
-            const gradeExamUrl = 'https://us-central1-studio-5931178696-f178e.cloudfunctions.net/gradeExam';
+            // 2. Grading endpoint. Defaults to the built-in Next.js API route
+            //    (works on any host). Set NEXT_PUBLIC_GRADE_EXAM_URL to use an
+            //    external endpoint instead, e.g. the legacy Cloud Function.
+            const gradeExamUrl = process.env.NEXT_PUBLIC_GRADE_EXAM_URL || '/api/grade-exam';
 
             // 3. Make the fetch request
             const response = await fetch(gradeExamUrl, {

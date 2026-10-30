@@ -3,11 +3,14 @@ import type {NextConfig} from 'next';
 const nextConfig: NextConfig = {
   output: 'standalone',
   /* config options here */
+  // TODO: the codebase still has pre-existing TypeScript errors (run
+  // `npm run typecheck`). Builds skip type/lint checks by default; set
+  // STRICT_BUILD=true to enforce them once those errors are fixed.
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: process.env.STRICT_BUILD !== 'true',
   },
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: process.env.STRICT_BUILD !== 'true',
   },
   images: {
     remotePatterns: [

@@ -1,7 +1,31 @@
 # Settings to manage and configure a Firebase App Hosting backend.
 # https://firebase.google.com/docs/app-hosting/configure
+#
+# Used ONLY by Firebase App Hosting; other hosts ignore this file and read the
+# same variables from their own environment settings (see .env.example).
+# Server-side firebase-admin uses App Hosting's built-in credentials, so no
+# service-account secret is needed here.
 
 runConfig:
   # Increase this value if you'd like to automatically spin up
   # more instances in response to increased traffic.
   maxInstances: 1
+
+env:
+  # Web app config for the Firebase project this backend belongs to.
+  # Change these values when pointing the backend at a different project.
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: AIzaSyB2En6Ng4S3boY0ZX-ogk7Hu5cAlAZjM4M
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: studio-5931178696-f178e.firebaseapp.com
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: studio-5931178696-f178e
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: 1:840014468456:web:37c6c7b0dbc8444d9af2dd
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "840014468456"
+    availability: [BUILD, RUNTIME]
