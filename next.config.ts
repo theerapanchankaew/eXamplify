@@ -3,9 +3,11 @@ import type {NextConfig} from 'next';
 const nextConfig: NextConfig = {
   output: 'standalone',
   /* config options here */
+  // TypeScript errors fail the build (run `npm run typecheck` locally).
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
+  // No ESLint config in the repo yet; skip linting during builds until one is added.
   eslint: {
     ignoreDuringBuilds: true,
   },

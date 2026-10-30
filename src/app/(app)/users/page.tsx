@@ -141,7 +141,7 @@ export default function UsersPage() {
 
     if (data.role === 'Admin') {
       batch.set(adminRoleRef, { role: 'admin' });
-    } else if (selectedUser.role === 'Admin' && data.role !== 'Admin') {
+    } else if (selectedUser.role === 'Admin') {
       batch.delete(adminRoleRef);
     }
     

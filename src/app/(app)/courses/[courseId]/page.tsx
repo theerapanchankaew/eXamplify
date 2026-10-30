@@ -551,7 +551,7 @@ export default function CourseDetailPage() {
                           onEditChapter={handleEditChapter}
                           onDeleteChapter={handleDeleteChapter}
                           onAddChapter={() => handleAddChapter(module)}
-                          isEnrolled={isEnrolled}
+                          isEnrolled={isEnrolled ?? undefined}
                           completedChapters={completedChapters}
                           onCompleteChapter={handleCompleteChapter}
                         />

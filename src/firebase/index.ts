@@ -7,13 +7,17 @@ import { getFirestore } from 'firebase/firestore';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 import { connectFirestoreEmulator } from 'firebase/firestore';
 
+let emulatorsConnected = false;
+
 // IMPORTANT: Always use firebaseConfig for initialization
 export function initializeFirebase() {
   if (!getApps().length) {
     // Always use firebaseConfig for consistent initialization
     // This prevents "Firebase: Need to provide options" errors in production
     if (!firebaseConfig || !firebaseConfig.apiKey) {
-      throw new Error('Firebase configuration is missing or invalid. Please check your firebase/config.ts file.');
+      throw new Error(
+        'Firebase configuration is missing. Set the NEXT_PUBLIC_FIREBASE_* environment variables (see .env.example) before building.'
+      );
     }
 
     const firebaseApp = initializeApp(firebaseConfig);
@@ -29,20 +33,24 @@ export function getSdks(firebaseApp: FirebaseApp) {
   const firestore = getFirestore(firebaseApp);
   const functions = getFunctions(firebaseApp);
 
-  // Connect to emulators in development
-  // if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
-  //   try {
-  //     // Connect to Functions emulator
-  //     connectFunctionsEmulator(functions, 'localhost', 5001);
-
-  //     // Connect to Firestore emulator
-  //     connectFirestoreEmulator(firestore, 'localhost', 8080);
-
-  //     console.log('🔧 Connected to Firebase Emulators');
-  //   } catch (error) {
-  //     console.warn('Failed to connect to emulators:', error);
-  //   }
-  // }
+  // Connect to the local Firebase Emulator Suite when explicitly enabled.
+  // Set NEXT_PUBLIC_USE_FIREBASE_EMULATOR=true (and optionally
+  // NEXT_PUBLIC_FIREBASE_EMULATOR_HOST) for local development.
+  if (
+    process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === 'true' &&
+    typeof window !== 'undefined' &&
+    !emulatorsConnected
+  ) {
+    const host = process.env.NEXT_PUBLIC_FIREBASE_EMULATOR_HOST || 'localhost';
+    try {
+      connectFunctionsEmulator(functions, host, 5001);
+      connectFirestoreEmulator(firestore, host, 8080);
+      emulatorsConnected = true;
+      console.log('🔧 Connected to Firebase Emulators');
+    } catch (error) {
+      console.warn('Failed to connect to emulators:', error);
+    }
+  }
 
   return {
     firebaseApp,
