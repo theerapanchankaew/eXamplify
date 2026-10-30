@@ -333,7 +333,7 @@ export function ScheduleManager({
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead padding="checkbox">
+                                    <TableHead className="w-12">
                                         <Checkbox
                                             checked={selectedSchedules.size === sortedSchedules.length}
                                             onCheckedChange={handleSelectAll}
@@ -350,7 +350,7 @@ export function ScheduleManager({
                             <TableBody>
                                 {sortedSchedules.map((schedule) => (
                                     <TableRow key={schedule.id} data-state={selectedSchedules.has(schedule.id) && "selected"}>
-                                        <TableCell padding="checkbox">
+                                        <TableCell className="w-12">
                                             <Checkbox
                                                 checked={selectedSchedules.has(schedule.id)}
                                                 onCheckedChange={() => handleSelect(schedule.id)}

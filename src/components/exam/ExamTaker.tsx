@@ -91,8 +91,9 @@ export function ExamTaker({ exam, questions }: ExamTakerProps) {
             // 1. Get user's auth token
             const token = await user.getIdToken();
 
-            // 2. Define Cloud Function URL from your environment
-            const gradeExamUrl = 'https://us-central1-studio-5931178696-f178e.cloudfunctions.net/gradeExam';
+            // 2. Server-side grading (answers never reach the browser).
+            //    Authenticated by the session cookie.
+            const gradeExamUrl = '/api/grade-exam';
 
             // 3. Make the fetch request
             const response = await fetch(gradeExamUrl, {

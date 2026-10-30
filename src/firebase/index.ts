@@ -1,55 +1,14 @@
 'use client';
 
-import { firebaseConfig } from '@/firebase/config';
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
-import { connectFirestoreEmulator } from 'firebase/firestore';
+// App data/auth entry point. The module keeps its historical name and API
+// (useFirestore, useUser, useCollection, ...) but is now backed by the
+// self-hosted server (/api/db, /api/auth) instead of Google Firebase.
 
-// IMPORTANT: Always use firebaseConfig for initialization
-export function initializeFirebase() {
-  if (!getApps().length) {
-    // Always use firebaseConfig for consistent initialization
-    // This prevents "Firebase: Need to provide options" errors in production
-    if (!firebaseConfig || !firebaseConfig.apiKey) {
-      throw new Error('Firebase configuration is missing or invalid. Please check your firebase/config.ts file.');
-    }
+import { getFirestore, type Firestore } from '@/lib/db/client';
+import { getAuth, type Auth } from '@/lib/auth/client';
 
-    const firebaseApp = initializeApp(firebaseConfig);
-    return getSdks(firebaseApp);
-  }
-
-  // If already initialized, return the SDKs with the already initialized App
-  return getSdks(getApp());
-}
-
-export function getSdks(firebaseApp: FirebaseApp) {
-  const auth = getAuth(firebaseApp);
-  const firestore = getFirestore(firebaseApp);
-  const functions = getFunctions(firebaseApp);
-
-  // Connect to emulators in development
-  // if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
-  //   try {
-  //     // Connect to Functions emulator
-  //     connectFunctionsEmulator(functions, 'localhost', 5001);
-
-  //     // Connect to Firestore emulator
-  //     connectFirestoreEmulator(firestore, 'localhost', 8080);
-
-  //     console.log('🔧 Connected to Firebase Emulators');
-  //   } catch (error) {
-  //     console.warn('Failed to connect to emulators:', error);
-  //   }
-  // }
-
-  return {
-    firebaseApp,
-    auth,
-    firestore,
-    functions,
-  };
+export function initializeFirebase(): { firestore: Firestore; auth: Auth } {
+  return { firestore: getFirestore(), auth: getAuth() };
 }
 
 export * from './provider';

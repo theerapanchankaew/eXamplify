@@ -1,7 +1,7 @@
 'use client';
 
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query } from 'firebase/firestore';
+import { collection, query } from '@/lib/db/client';
 import { Skeleton } from '../ui/skeleton';
 import {
     DropdownMenu,

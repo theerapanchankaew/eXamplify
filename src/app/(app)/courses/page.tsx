@@ -16,7 +16,7 @@ import {
   where,
   getDocs,
   increment,
-} from 'firebase/firestore';
+} from '@/lib/db/client';
 import { useCollection, useFirestore, useUser, useMemoFirebase, useDoc } from '@/firebase';
 import { getUserTokenBalance } from '@/lib/tokens';
 import { calculateCourseProgress, getNextAction } from '@/lib/lesson-progress';

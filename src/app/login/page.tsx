@@ -7,9 +7,8 @@ import * as z from 'zod';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-} from 'firebase/auth';
-import { doc, setDoc, writeBatch } from 'firebase/firestore';
-import { useAuth, useFirestore, useUser } from '@/firebase';
+} from '@/lib/auth/client';
+import { useAuth, useUser } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -37,7 +36,6 @@ type FormData = z.infer<typeof formSchema>;
 
 export default function LoginPage() {
   const auth = useAuth();
-  const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -57,7 +55,7 @@ export default function LoginPage() {
       toast({
         variant: 'destructive',
         title: 'Login Failed',
-        description: 'Firebase Auth is not available.',
+        description: 'Authentication service is not available.',
       });
       setIsLoading(false);
       return;
@@ -78,42 +76,28 @@ export default function LoginPage() {
 
   const handleSignUp = async (values: FormData) => {
     setIsLoading(true);
-    if (!auth || !firestore) {
+    if (!auth) {
       toast({
         variant: 'destructive',
         title: 'Sign Up Failed',
-        description: 'Firebase services are not available.',
+        description: 'Authentication service is not available.',
+      });
+      setIsLoading(false);
+      return;
+    }
+    if (values.password.length < 8) {
+      toast({
+        variant: 'destructive',
+        title: 'Sign Up Failed',
+        description: 'Password must be at least 8 characters.',
       });
       setIsLoading(false);
       return;
     }
     try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        values.email,
-        values.password
-      );
-      const newUser = userCredential.user;
-
-      const isAdmin = values.email.toLowerCase() === 'admin@masci.com' || values.email.toLowerCase() === 'admin@masci.or.th';
-      const userRole = isAdmin ? 'Admin' : 'Student';
-
-      const batch = writeBatch(firestore);
-
-      const userDocRef = doc(firestore, 'users', newUser.uid);
-      batch.set(userDocRef, {
-        id: newUser.uid,
-        email: newUser.email,
-        role: userRole,
-        username: newUser.email?.split('@')[0] || `user_${newUser.uid.substring(0, 5)}`,
-      });
-
-      if (isAdmin) {
-        const adminRoleRef = doc(firestore, 'roles_admin', newUser.uid);
-        batch.set(adminRoleRef, { role: 'admin' });
-      }
-
-      await batch.commit();
+      // The server creates the account and its users/{uid} profile (role
+      // "Student", or "Admin" for BOOTSTRAP_ADMIN_EMAILS) in one step.
+      await createUserWithEmailAndPassword(auth, values.email, values.password);
 
       toast({
         title: 'Success',

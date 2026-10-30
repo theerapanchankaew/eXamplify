@@ -6,7 +6,7 @@ import {
     query,
     where,
     getDocs,
-} from 'firebase/firestore';
+} from '@/lib/db/client';
 
 /**
  * Check if a user is enrolled in a specific course

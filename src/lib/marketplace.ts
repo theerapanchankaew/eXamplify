@@ -12,7 +12,7 @@ import {
     serverTimestamp,
     writeBatch,
     increment,
-} from 'firebase/firestore';
+} from '@/lib/db/client';
 import { CartItem, Order, Voucher } from '@/types/marketplace';
 import { getUserTokenBalance } from './tokens';
 

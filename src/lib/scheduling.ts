@@ -1,8 +1,11 @@
 'use client';
 
-import { doc, setDoc, updateDoc, deleteDoc, Timestamp, collection, query, where, getDocs, writeBatch, runTransaction } from 'firebase/firestore';
-import { Firestore } from 'firebase/firestore';
-import { ExamSchedule, ExamScheduleUpdate, UserBooking } from '@/types/scheduling';
+import { doc, setDoc, updateDoc, deleteDoc, Timestamp, collection, query, where, getDocs, writeBatch, runTransaction } from '@/lib/db/client';
+import { Firestore } from '@/lib/db/client';
+import { Booking, ExamSchedule, ExamScheduleUpdate } from '@/types/scheduling';
+
+// Must match firestore.rules (`match /bookings/{bookingId}`) and the exams page query.
+const BOOKINGS_COLLECTION = 'bookings';
 
 const TIME_SLOTS = [
     { value: '09:00', label: 'Morning (9:00 AM)' },
@@ -141,18 +144,18 @@ export const getSchedulesByCourse = async (firestore: Firestore, courseId: strin
     const q = query(schedulesRef, where('courseId', '==', courseId));
 
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => doc.data() as ExamSchedule);
+    return querySnapshot.docs.map(d => ({ ...d.data(), id: d.id }) as ExamSchedule);
 };
 
 /**
  * Retrieves all bookings for a specific user.
  */
-export const getUserBookings = async (firestore: Firestore, userId: string): Promise<UserBooking[]> => {
-    const bookingsRef = collection(firestore, 'userBookings');
+export const getUserBookings = async (firestore: Firestore, userId: string): Promise<Booking[]> => {
+    const bookingsRef = collection(firestore, BOOKINGS_COLLECTION);
     const q = query(bookingsRef, where('userId', '==', userId));
     
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => doc.data() as UserBooking);
+    return querySnapshot.docs.map(d => ({ ...d.data(), id: d.id }) as Booking);
 };
 
 /**
@@ -165,27 +168,27 @@ export const cancelBooking = async (
   ): Promise<{ success: boolean; error?: string }> => {
     try {
       await runTransaction(firestore, async (transaction) => {
-        const bookingRef = doc(firestore, 'userBookings', bookingId);
+        const bookingRef = doc(firestore, BOOKINGS_COLLECTION, bookingId);
         const bookingDoc = await transaction.get(bookingRef);
   
         if (!bookingDoc.exists()) {
           throw new Error('Booking not found.');
         }
   
-        const booking = bookingDoc.data() as UserBooking;
+        const booking = bookingDoc.data() as Booking;
         const scheduleRef = doc(firestore, 'examSchedules', booking.scheduleId);
         const scheduleDoc = await transaction.get(scheduleRef);
   
         if (!scheduleDoc.exists()) {
           // If schedule is not found, the booking is orphaned, but we can still cancel it.
-          transaction.update(bookingRef, { status: 'cancelled' });
+          transaction.update(bookingRef, { status: 'cancelled', cancelledAt: Timestamp.now(), cancelReason: reason });
           return;
         }
   
         const schedule = scheduleDoc.data() as ExamSchedule;
   
         // Update booking status
-        transaction.update(bookingRef, { status: 'cancelled' });
+        transaction.update(bookingRef, { status: 'cancelled', cancelledAt: Timestamp.now(), cancelReason: reason });
   
         // Decrement booked count and update schedule status
         const newBookedCount = Math.max(0, schedule.bookedCount - 1);
@@ -213,7 +216,7 @@ export const getAvailableSchedules = async (firestore: Firestore, examId: string
     const q = query(schedulesRef, where('examId', '==', examId), where('status', '==', 'available'));
 
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => doc.data() as ExamSchedule);
+    return querySnapshot.docs.map(d => ({ ...d.data(), id: d.id }) as ExamSchedule);
 };
 
 /**
@@ -222,6 +225,8 @@ export const getAvailableSchedules = async (firestore: Firestore, examId: string
 export const bookExamSlot = async (
     firestore: Firestore,
     userId: string,
+    userName: string,
+    userEmail: string,
     scheduleId: string
 ): Promise<{ success: boolean; error?: string }> => {
     try {
@@ -239,12 +244,14 @@ export const bookExamSlot = async (
                 throw new Error('This slot is no longer available.');
             }
 
-            // Check if user has already booked this exam
-            const userBookingsRef = collection(firestore, 'userBookings');
-            const q = query(userBookingsRef, where('userId', '==', userId), where('examId', '==', schedule.examId));
-            const existingBooking = await getDocs(q);
+            // Check if user already has an active booking for this exam
+            // (cancelled bookings don't block re-booking).
+            const bookingsRef = collection(firestore, BOOKINGS_COLLECTION);
+            const q = query(bookingsRef, where('userId', '==', userId), where('examId', '==', schedule.examId));
+            const existingBookings = await getDocs(q);
+            const hasActiveBooking = existingBookings.docs.some(d => d.data().status === 'confirmed');
 
-            if (!existingBooking.isEmpty) {
+            if (hasActiveBooking) {
                 throw new Error('You have already booked this exam.');
             }
 
@@ -259,14 +266,19 @@ export const bookExamSlot = async (
             });
 
             const bookingId = `${userId}_${scheduleId}`;
-            const bookingRef = doc(firestore, 'userBookings', bookingId);
+            const bookingRef = doc(firestore, BOOKINGS_COLLECTION, bookingId);
 
-            const newBooking: UserBooking = {
+            const newBooking: Booking = {
                 id: bookingId,
                 userId,
+                userName,
+                userEmail,
                 scheduleId,
                 examId: schedule.examId,
+                examName: schedule.examName,
                 courseId: schedule.courseId,
+                date: schedule.date,
+                timeSlot: schedule.timeSlot,
                 bookingDate: Timestamp.now(),
                 status: 'confirmed',
             };

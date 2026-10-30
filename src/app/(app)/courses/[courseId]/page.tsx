@@ -17,7 +17,7 @@ import {
   writeBatch,
   increment,
   where,
-} from 'firebase/firestore';
+} from '@/lib/db/client';
 import { getUserTokenBalance } from '@/lib/tokens';
 import { calculateCourseProgress, getNextAction } from '@/lib/lesson-progress';
 import { Progress } from '@/components/ui/progress';
@@ -551,7 +551,7 @@ export default function CourseDetailPage() {
                           onEditChapter={handleEditChapter}
                           onDeleteChapter={handleDeleteChapter}
                           onAddChapter={() => handleAddChapter(module)}
-                          isEnrolled={isEnrolled}
+                          isEnrolled={isEnrolled ?? undefined}
                           completedChapters={completedChapters}
                           onCompleteChapter={handleCompleteChapter}
                         />

@@ -1,4 +1,4 @@
-import { Firestore, writeBatch, doc, collection, serverTimestamp, WriteBatch } from 'firebase/firestore';
+import { Firestore, writeBatch, doc, collection, serverTimestamp, WriteBatch } from '@/lib/db/client';
 import { CourseImportData, validateCourseImport, ValidationResult } from './schemas/course-import';
 
 export interface ImportResult {

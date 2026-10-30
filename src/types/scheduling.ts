@@ -1,4 +1,4 @@
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp } from '@/lib/db/wire';
 
 export interface ExamSchedule {
     id: string;
@@ -22,12 +22,39 @@ export interface ExamScheduleUpdate {
     status?: 'available' | 'full' | 'cancelled';
 }
 
-export interface UserBooking {
+export type BookingStatus = 'confirmed' | 'cancelled' | 'completed' | 'no-show';
+
+/**
+ * A user's booking of an exam schedule slot, stored in the `bookings`
+ * collection. Schedule details (exam name, date, time slot) are copied in so
+ * booking lists can render without extra reads.
+ */
+export interface Booking {
     id: string;
     userId: string;
+    userName: string;
+    userEmail: string;
     scheduleId: string;
     examId: string;
+    examName: string;
     courseId: string;
+    date: Timestamp;
+    timeSlot: string;
     bookingDate: Timestamp;
-    status: 'confirmed' | 'cancelled'; // e.g., if user cancels
+    status: BookingStatus;
+    cancelledAt?: Timestamp;
+    cancelReason?: string;
+}
+
+/** @deprecated use Booking */
+export type UserBooking = Booking;
+
+/** A time slot as displayed in the booking calendar. */
+export interface TimeSlotInfo {
+    slot: string;
+    label: string;
+    available: boolean;
+    capacity: number;
+    booked: number;
+    scheduleId?: string;
 }

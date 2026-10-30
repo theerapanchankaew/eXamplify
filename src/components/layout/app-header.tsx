@@ -1,7 +1,7 @@
 'use client';
 import { Bell, LogOut, Search, Settings, User, Wallet } from 'lucide-react';
 import Link from 'next/link';
-import { signOut } from 'firebase/auth';
+import { signOut } from '@/lib/auth/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -16,7 +16,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { SidebarTrigger } from '../ui/sidebar';
 import { PageTitle } from './page-title';
 import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, collectionGroup, doc } from 'firebase/firestore';
+import { collection, query, collectionGroup, doc } from '@/lib/db/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMemo } from 'react';
 import { useDoc } from '@/firebase/firestore/use-doc';

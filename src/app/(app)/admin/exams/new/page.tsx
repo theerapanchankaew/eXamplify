@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useForm, useFieldArray, FormProvider } from 'react-hook-form';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query } from 'firebase/firestore';
+import { collection, query } from '@/lib/db/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -41,17 +42,29 @@ export default function CreateExamPage() {
         status: 'draft',
     });
 
-    const [questions, setQuestions] = useState<Question[]>([
-        {
-            id: 'q1',
-            text: '',
-            type: 'multiple-choice',
-            options: ['', '', '', ''],
-            correctAnswer: '',
-            explanation: '',
-            points: 1,
+    // Questions are edited through react-hook-form because QuestionBuilder
+    // reads them via useFormContext().
+    const questionsForm = useForm<{ questions: Question[] }>({
+        defaultValues: {
+            questions: [
+                {
+                    id: 'q1',
+                    text: '',
+                    type: 'multiple-choice',
+                    options: ['', '', '', ''],
+                    correctAnswer: '',
+                    explanation: '',
+                    points: 1,
+                },
+            ],
         },
-    ]);
+    });
+    const {
+        fields: questionFields,
+        append: appendQuestion,
+        remove: removeQuestion,
+    } = useFieldArray({ control: questionsForm.control, name: 'questions', keyName: 'fieldKey' });
+    const questions = questionsForm.watch('questions');
 
     // Load courses
     const coursesQuery = useMemoFirebase(
@@ -62,7 +75,7 @@ export default function CreateExamPage() {
 
     const handleAddQuestion = () => {
         const newQuestion: Question = {
-            id: `q${questions.length + 1}`,
+            id: `q${Date.now()}`,
             text: '',
             type: 'multiple-choice',
             options: ['', '', '', ''],
@@ -70,13 +83,7 @@ export default function CreateExamPage() {
             explanation: '',
             points: 1,
         };
-        setQuestions([...questions, newQuestion]);
-    };
-
-    const handleUpdateQuestion = (index: number, updatedQuestion: Question) => {
-        const newQuestions = [...questions];
-        newQuestions[index] = updatedQuestion;
-        setQuestions(newQuestions);
+        appendQuestion(newQuestion);
     };
 
     const handleDeleteQuestion = (index: number) => {
@@ -88,7 +95,7 @@ export default function CreateExamPage() {
             });
             return;
         }
-        setQuestions(questions.filter((_, i) => i !== index));
+        removeQuestion(index);
     };
 
     const validateForm = (): boolean => {
@@ -306,6 +313,7 @@ export default function CreateExamPage() {
                 </Card>
 
                 {/* Questions */}
+                <FormProvider {...questionsForm}>
                 <Card>
                     <CardHeader>
                         <div className="flex justify-between items-center">
@@ -313,24 +321,23 @@ export default function CreateExamPage() {
                                 <CardTitle>Questions ({questions.length})</CardTitle>
                                 <CardDescription>Add and configure exam questions</CardDescription>
                             </div>
-                            <Button onClick={handleAddQuestion} variant="outline">
+                            <Button type="button" onClick={handleAddQuestion} variant="outline">
                                 <Plus className="mr-2 h-4 w-4" />
                                 Add Question
                             </Button>
                         </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        {questions.map((question, index) => (
+                        {questionFields.map((field, index) => (
                             <QuestionBuilder
-                                key={question.id}
-                                question={question}
+                                key={field.fieldKey}
                                 index={index}
-                                onUpdate={(updated) => handleUpdateQuestion(index, updated)}
-                                onDelete={() => handleDeleteQuestion(index)}
+                                onRemove={() => handleDeleteQuestion(index)}
                             />
                         ))}
                     </CardContent>
                 </Card>
+                </FormProvider>
 
                 {/* Actions */}
                 <div className="flex justify-end gap-4">

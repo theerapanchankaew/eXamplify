@@ -7,7 +7,7 @@ import {
     doc,
     updateDoc,
     increment,
-} from 'firebase/firestore';
+} from '@/lib/db/client';
 
 export interface LessonInfo {
     id: string;
